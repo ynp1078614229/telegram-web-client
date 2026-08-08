@@ -35,6 +35,11 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', authorized: telegramService.isReady });
 });
 
+// Catch-all for /api/* routes - return JSON instead of HTML 404
+app.all('/api/*', (req, res) => {
+  res.status(404).json({ error: `API endpoint not found: ${req.method} ${req.path}` });
+});
+
 // Socket.io connection handling
 io.on('connection', (socket) => {
   console.log('[Socket] Client connected:', socket.id);

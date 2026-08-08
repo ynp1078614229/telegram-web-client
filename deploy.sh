@@ -185,6 +185,16 @@ server {
         proxy_connect_timeout 60s;
         proxy_send_timeout 60s;
         proxy_read_timeout 60s;
+
+        # 后端不可用时返回 JSON 而不是 HTML
+        error_page 502 503 504 =500 @api_error;
+    }
+
+    # API 错误兜底 - 返回 JSON
+    location @api_error {
+        default_type application/json;
+        add_header Content-Type application/json always;
+        return 502 '{"error": "Backend service is unavailable. Please try again later."}';
     }
 
     # WebSocket 代理 (Socket.io)
