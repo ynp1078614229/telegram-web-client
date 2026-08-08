@@ -3,8 +3,12 @@
 # Telegram Web Client - 一键部署脚本
 # ============================================
 # 用法:
-#   sudo bash deploy.sh                    # 默认 IP 直接访问
-#   sudo bash deploy.sh telegram.example.com  # 绑定域名
+#   curl -sL https://raw.githubusercontent.com/ynp1078614229/telegram-web-client/main/deploy.sh | bash
+#   或:
+#   wget -qO- https://raw.githubusercontent.com/ynp1078614229/telegram-web-client/main/deploy.sh | bash
+#
+# 绑定域名:
+#   curl -sL .../deploy.sh | bash -s -- telegram.example.com
 #
 # 环境要求: Ubuntu 20.04+ / Debian 11+, root 权限
 # ============================================
@@ -14,6 +18,7 @@ set -e
 DOMAIN=${1:-_}
 BACKEND_PORT=3001
 DEPLOY_DIR="/opt/telegram-web"
+REPO_URL="https://github.com/ynp1078614229/telegram-web-client.git"
 NODE_VERSION="20"
 
 GREEN='\033[0;32m'
@@ -31,13 +36,12 @@ echo "  Telegram Web Client - 一键部署"
 echo "============================================"
 echo ""
 
-# Root check
 [ "$EUID" -ne 0 ] && error "请使用 root 或 sudo 运行"
 
 # 1. System packages
 info "安装系统依赖..."
 apt-get update -qq
-apt-get install -y -qq build-essential python3 curl > /dev/null
+apt-get install -y -qq build-essential python3 curl git > /dev/null
 
 # 2. Node.js
 if command -v node &> /dev/null; then
@@ -67,9 +71,27 @@ if ! command -v nginx &> /dev/null; then
 fi
 info "Nginx 已就绪"
 
-# 6. Deploy source code
+# 6. Get source code
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
+# Check if running from cloned repo
+if [ -f "$SCRIPT_DIR/backend/package.json" ] && [ -f "$SCRIPT_DIR/frontend/package.json" ]; then
+    info "检测到本地源码，使用当前目录"
+    SRC_DIR="$SCRIPT_DIR"
+else
+    info "从 GitHub 拉取最新源码..."
+    TEMP_DIR=$(mktemp -d)
+    if command -v git &> /dev/null; then
+        git clone --depth 1 "$REPO_URL" "$TEMP_DIR/repo" > /dev/null 2>&1
+        SRC_DIR="$TEMP_DIR/repo"
+    else
+        curl -sL "$REPO_URL/archive/refs/heads/main.tar.gz" | tar xz -C "$TEMP_DIR"
+        SRC_DIR="$TEMP_DIR/telegram-web-client-main"
+    fi
+    info "源码下载完成"
+fi
+
+# 7. Deploy source code
 if [ -d "$DEPLOY_DIR" ]; then
     warn "备份旧版本到 ${DEPLOY_DIR}.bak.$(date +%s)"
     mv "$DEPLOY_DIR" "${DEPLOY_DIR}.bak.$(date +%s)" 2>/dev/null || true
@@ -77,23 +99,23 @@ fi
 
 info "部署源码到 $DEPLOY_DIR..."
 mkdir -p "$DEPLOY_DIR"
-cp -r "$SCRIPT_DIR/backend" "$DEPLOY_DIR/"
-cp -r "$SCRIPT_DIR/frontend" "$DEPLOY_DIR/"
+cp -r "$SRC_DIR/backend" "$DEPLOY_DIR/"
+cp -r "$SRC_DIR/frontend" "$DEPLOY_DIR/"
 
-# 7. Environment config
+# 8. Environment config
 if [ ! -f "$DEPLOY_DIR/backend/.env" ]; then
     cat > "$DEPLOY_DIR/backend/.env" << ENVEOF
-# Telegram API - 从 https://my.telegram.org/apps 获取
+# Telegram API
 TELEGRAM_API_ID=33960207
 TELEGRAM_API_HASH=b4a1d5e99cce9e6f317596dfc25aa38a
 
 # 服务端口
 PORT=${BACKEND_PORT}
 ENVEOF
-    warn "请编辑 $DEPLOY_DIR/backend/.env 填入你的 Telegram API 凭证"
+    info "API 配置已自动写入"
 fi
 
-# 8. Backend
+# 9. Backend
 info "安装后端依赖..."
 cd "$DEPLOY_DIR/backend"
 rm -rf node_modules
@@ -102,7 +124,7 @@ pnpm install --silent 2>/dev/null || pnpm install
 info "编译后端..."
 pnpm run build
 
-# 9. Frontend
+# 10. Frontend
 info "安装前端依赖..."
 cd "$DEPLOY_DIR/frontend"
 rm -rf node_modules
@@ -111,12 +133,12 @@ pnpm install --silent 2>/dev/null || pnpm install
 info "构建前端..."
 pnpm run build
 
-# 10. Copy frontend dist to nginx directory
+# 11. Copy frontend dist to nginx directory
 info "部署前端到 Nginx..."
 mkdir -p /var/www/telegram-web
 cp -r "$DEPLOY_DIR/frontend/dist/"* /var/www/telegram-web/
 
-# 11. Nginx config
+# 12. Nginx config
 info "配置 Nginx..."
 cat > /etc/nginx/sites-available/telegram-web << NGINXEOF
 server {
@@ -126,12 +148,10 @@ server {
     root /var/www/telegram-web;
     index index.html;
 
-    # SPA routing
     location / {
         try_files \$uri \$uri/ /index.html;
     }
 
-    # Backend API
     location /api/ {
         proxy_pass http://127.0.0.1:${BACKEND_PORT};
         proxy_http_version 1.1;
@@ -150,7 +170,6 @@ server {
         return 502 '{"error": "Backend service is unavailable"}';
     }
 
-    # WebSocket
     location /socket.io/ {
         proxy_pass http://127.0.0.1:${BACKEND_PORT};
         proxy_http_version 1.1;
@@ -162,7 +181,6 @@ server {
         proxy_send_timeout 86400s;
     }
 
-    # Static cache
     location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
         expires 30d;
         add_header Cache-Control "public, immutable";
@@ -175,7 +193,7 @@ rm -f /etc/nginx/sites-enabled/default
 nginx -t && systemctl restart nginx
 info "Nginx 配置完成"
 
-# 12. Start backend with PM2
+# 13. Start backend with PM2
 info "启动后端服务..."
 cd "$DEPLOY_DIR/backend"
 pm2 delete telegram-backend 2>/dev/null || true
@@ -189,7 +207,7 @@ pm2 startup systemd -u root --hp /root 2>/dev/null || true
 
 sleep 3
 
-# 13. Health check
+# 14. Health check
 echo ""
 echo "============================================"
 SERVER_IP=$(curl -4 -s ifconfig.me 2>/dev/null || echo "YOUR_SERVER_IP")
