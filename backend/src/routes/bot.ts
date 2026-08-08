@@ -1,7 +1,7 @@
-import { Router } from 'express';
+import { Router, type IRouter } from 'express';
 import db from '../db/database.js';
 
-const router = Router();
+const router: IRouter = Router();
 
 // 获取所有自动回复规则
 router.get('/rules', (req, res) => {

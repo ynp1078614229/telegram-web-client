@@ -1,8 +1,8 @@
-import { Router } from 'express';
+import { Router, type IRouter } from 'express';
 import { telegramService } from '../services/telegram.js';
 import { Api } from 'telegram/index.js';
 
-const router = Router();
+const router: IRouter = Router();
 
 // Download media file
 router.get('/:chatId/:msgId/:type', async (req, res) => {
