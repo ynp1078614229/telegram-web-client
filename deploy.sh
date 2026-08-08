@@ -123,6 +123,9 @@ log "安装后端依赖..."
 cd "${APP_DIR}/backend"
 pnpm install --prod=false > /dev/null 2>&1
 
+log "编译原生模块 (better-sqlite3)..."
+pnpm rebuild better-sqlite3 > /dev/null 2>&1
+
 log "构建后端 TypeScript..."
 pnpm run build > /dev/null 2>&1
 
@@ -273,7 +276,7 @@ fi
 
 echo ""
 if [ "${DOMAIN}" = "_" ]; then
-  SERVER_IP=$(curl -s ifconfig.me 2>/dev/null || echo "YOUR_SERVER_IP")
+  SERVER_IP=$(curl -4 -s ifconfig.me 2>/dev/null || curl -s ifconfig.me 2>/dev/null || echo "YOUR_SERVER_IP")
   echo -e "  访问地址: ${GREEN}http://${SERVER_IP}${NC}"
 else
   echo -e "  访问地址: ${GREEN}http://${DOMAIN}${NC}"
