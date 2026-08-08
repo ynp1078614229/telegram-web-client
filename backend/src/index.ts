@@ -8,7 +8,7 @@ import chatRoutes from './routes/chats.js';
 import contactRoutes from './routes/contacts.js';
 import { telegramService } from './services/telegram.js';
 
-const PORT = parseInt(process.env.DEPLOY_RUN_PORT || '3001');
+const PORT = parseInt(process.env.BACKEND_PORT || '3001');
 
 const app = express();
 const httpServer = createServer(app);
