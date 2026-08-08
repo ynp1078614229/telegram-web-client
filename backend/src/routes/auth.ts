@@ -27,12 +27,35 @@ router.post('/verify-code', async (req, res) => {
       res.status(400).json({ error: 'Missing required fields' });
       return;
     }
-    await telegramService.verifyCode(phone, code, phoneCodeHash);
-    const user = telegramService.getCurrentUser();
-    res.json({ success: true, user });
+    const result = await telegramService.verifyCode(phone, code, phoneCodeHash);
+    if (result.needs2FA) {
+      res.json({ success: false, needs2FA: true });
+      return;
+    }
+    if (result.success) {
+      const user = telegramService.getCurrentUser();
+      res.json({ success: true, user });
+    }
   } catch (err: any) {
     console.error('[Auth] verify-code error:', err);
     res.status(500).json({ error: err.message || 'Verification failed' });
+  }
+});
+
+// Verify 2FA password
+router.post('/verify-2fa', async (req, res) => {
+  try {
+    const { password } = req.body;
+    if (!password) {
+      res.status(400).json({ error: 'Password is required' });
+      return;
+    }
+    await telegramService.verify2FA(password);
+    const user = telegramService.getCurrentUser();
+    res.json({ success: true, user });
+  } catch (err: any) {
+    console.error('[Auth] verify-2fa error:', err);
+    res.status(500).json({ error: err.message || '2FA verification failed' });
   }
 });
 
@@ -56,8 +79,7 @@ router.post('/qr-login', async (req, res) => {
 // Check QR login status
 router.post('/qr-check', async (req, res) => {
   try {
-    const { token } = req.body;
-    const success = await telegramService.checkQRLogin(token);
+    const success = await telegramService.checkQRLogin();
     if (success) {
       const user = telegramService.getCurrentUser();
       res.json({ success: true, user });
@@ -65,7 +87,9 @@ router.post('/qr-check', async (req, res) => {
       res.json({ success: false });
     }
   } catch (err: any) {
-    res.json({ success: false });
+    console.log('[Auth] qr-check error:', err.message);
+    // Return error status so frontend regenerates QR
+    res.status(400).json({ success: false, error: err.message || 'QR expired' });
   }
 });
 

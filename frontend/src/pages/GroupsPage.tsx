@@ -158,12 +158,12 @@ function CreateGroupModal({ onClose, onCreated }: CreateGroupModalProps) {
           )}
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Group Name</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">群组名称</label>
             <input
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Enter group name"
+              placeholder="输入群组名称"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
             />
           </div>
@@ -174,7 +174,7 @@ function CreateGroupModal({ onClose, onCreated }: CreateGroupModalProps) {
             </label>
             <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-lg">
               {contacts.length === 0 ? (
-                <p className="text-sm text-gray-400 text-center py-4">No contacts available</p>
+                <p className="text-sm text-gray-400 text-center py-4">暂无联系人</p>
               ) : (
                 contacts.map((contact) => {
                   const name = `${contact.firstName} ${contact.lastName || ''}`.trim();

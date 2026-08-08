@@ -73,6 +73,31 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_messages_chat_id ON messages(chat_id);
   CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp);
   CREATE INDEX IF NOT EXISTS idx_chats_last_message_time ON chats(last_message_time DESC);
+
+  CREATE TABLE IF NOT EXISTS auto_replies (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    keyword TEXT NOT NULL,
+    match_type TEXT DEFAULT 'contains',
+    reply_text TEXT NOT NULL,
+    is_active INTEGER DEFAULT 1,
+    match_count INTEGER DEFAULT 0,
+    created_at INTEGER DEFAULT (strftime('%s','now')),
+    updated_at INTEGER DEFAULT (strftime('%s','now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS auto_reply_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    rule_id INTEGER NOT NULL,
+    from_user_id INTEGER,
+    from_user_name TEXT DEFAULT '',
+    keyword TEXT DEFAULT '',
+    reply_text TEXT DEFAULT '',
+    created_at INTEGER DEFAULT (strftime('%s','now')),
+    FOREIGN KEY (rule_id) REFERENCES auto_replies(id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_auto_reply_logs_rule_id ON auto_reply_logs(rule_id);
+
 `);
 
 export default db;

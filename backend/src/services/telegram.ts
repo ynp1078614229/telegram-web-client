@@ -1,6 +1,7 @@
 import { TelegramClient, Api } from 'telegram';
 import { StringSession } from 'telegram/sessions/index.js';
 import { NewMessage } from 'telegram/events/index.js';
+import { computeCheck } from 'telegram/Password.js';
 import type { Server as SocketIOServer } from 'socket.io';
 import db from '../db/database.js';
 import type { Chat, Message, Contact, GroupMember } from '../types/index.js';
@@ -118,19 +119,27 @@ class TelegramService {
     this.io = io;
   }
 
+  private async ensureClient(): Promise<void> {
+    if (!this.client) {
+      const session = new StringSession('');
+      this.client = new TelegramClient(session, API_ID, API_HASH, { connectionRetries: 5, useWSS: true });
+      await this.client.connect();
+    }
+  }
+
   async sendCode(phone: string): Promise<{ phoneCodeHash: string }> {
-    if (!this.client) throw new Error('Client not initialized');
-    const result = await this.client.sendCode(
+    await this.ensureClient();
+    const result = await this.client!.sendCode(
       { apiId: API_ID, apiHash: API_HASH },
       phone
     );
     return { phoneCodeHash: result.phoneCodeHash };
   }
 
-  async verifyCode(phone: string, code: string, phoneCodeHash: string): Promise<boolean> {
-    if (!this.client) throw new Error('Client not initialized');
+  async verifyCode(phone: string, code: string, phoneCodeHash: string): Promise<{ success: boolean; needs2FA: boolean }> {
+    await this.ensureClient();
     try {
-      await this.client.invoke(
+      await this.client!.invoke(
         new Api.auth.SignIn({
           phoneNumber: phone,
           phoneCodeHash,
@@ -138,20 +147,46 @@ class TelegramService {
         })
       );
       await this.onAuthorized();
-      return true;
+      return { success: true, needs2FA: false };
     } catch (err: any) {
       if (err.errorMessage === 'SESSION_PASSWORD_NEEDED') {
-        throw new Error('2FA required - not supported in this client');
+        console.log('[Auth] 2FA required for phone:', phone);
+        return { success: false, needs2FA: true };
+      }
+      throw err;
+    }
+  }
+
+  async verify2FA(password: string): Promise<boolean> {
+    if (!this.client) {
+      throw new Error('Client not initialized');
+    }
+    try {
+      const pwdResult = await this.client.invoke(new Api.account.GetPassword());
+      console.log('[Auth] Got password SRP info, srpId:', pwdResult.srpId?.toString());
+      const inputCheck = await computeCheck(pwdResult, password);
+      const result = await this.client.invoke(
+        new Api.auth.CheckPassword({ password: inputCheck })
+      );
+      console.log('[Auth] 2FA check result type:', result.className);
+      if (result instanceof Api.auth.Authorization) {
+        await this.onAuthorized();
+        return true;
+      }
+      throw new Error('Unexpected 2FA result: ' + result.className);
+    } catch (err: any) {
+      console.error('[Auth] 2FA verify error:', err.errorMessage || err.message);
+      if (err.errorMessage === 'PASSWORD_HASH_INVALID') {
+        throw new Error('密码错误，请重新输入');
       }
       throw err;
     }
   }
 
   async getQRCode(): Promise<{ token: Buffer; expires: number }> {
-    if (!this.client) throw new Error('Client not initialized');
-    // Disconnect any existing session for QR login
-    if (this.isReady) {
-      await this.client.disconnect();
+    // Disconnect any existing client
+    if (this.client) {
+      try { await this.client.disconnect(); } catch {}
       this.isReady = false;
     }
 
@@ -172,7 +207,6 @@ class TelegramService {
 
     if (result instanceof Api.auth.LoginToken) {
       const qrUrl = `tg://login?token=${result.token.toString('base64url')}`;
-      // Generate a simple QR code representation
       const tokenData = Buffer.from(JSON.stringify({
         token: result.token.toString('base64url'),
         expires: result.expires,
@@ -183,34 +217,67 @@ class TelegramService {
     throw new Error('Unexpected QR login result');
   }
 
-  async checkQRLogin(tokenData: string): Promise<boolean> {
-    if (!this.client) return false;
+  async checkQRLogin(): Promise<boolean> {
+    if (!this.client) {
+      console.log('[Auth] checkQR: client is null');
+      return false;
+    }
     try {
-      const data = JSON.parse(tokenData);
-      const token = Buffer.from(data.token, 'base64url');
-
       const result = await this.client.invoke(
-        new Api.auth.ImportLoginToken({ token })
+        new Api.auth.ExportLoginToken({
+          apiId: API_ID,
+          apiHash: API_HASH,
+          exceptIds: [],
+        })
       );
+      console.log('[Auth] ExportLoginToken check result:', result.className);
 
       if (result instanceof Api.auth.LoginTokenSuccess) {
         if (result.authorization instanceof Api.auth.Authorization) {
-          // Save session
-          const sessionStr = (this.client.session as any).save();
-          db.prepare('INSERT OR REPLACE INTO auth_state (key, value) VALUES (?, ?)').run('session', sessionStr);
+          console.log('[Auth] QR login success!');
           await this.onAuthorized();
           return true;
         }
+        console.log('[Auth] QR LoginTokenSuccess but unexpected authorization type:', (result.authorization as any)?.className);
+        return false;
+      } else if (result instanceof Api.auth.LoginToken) {
+        console.log('[Auth] QR login still waiting for scan...');
+        return false;
+      } else if (result instanceof Api.auth.LoginTokenMigrateTo) {
+        console.log('[Auth] QR login needs DC migration to DC', result.dcId);
+        
+        // Use GramJS built-in _switchDC to migrate client to the target DC
+        await (this.client as any)._switchDC(result.dcId);
+        console.log('[Auth] Switched to DC', result.dcId, ', now importing token...');
+        
+        // Now import the login token on the correct DC
+        const importResult = await this.client.invoke(
+          new Api.auth.ImportLoginToken({ token: result.token })
+        );
+        console.log('[Auth] ImportLoginToken result:', (importResult as any).className);
+        
+        if (importResult instanceof Api.auth.LoginTokenSuccess) {
+          if (importResult.authorization instanceof Api.auth.Authorization) {
+            console.log('[Auth] QR login success after DC migration!');
+            await this.onAuthorized();
+            return true;
+          }
+        }
+        
+        console.log('[Auth] ImportLoginToken unexpected result type');
+        return false;
       }
+      
+      console.log('[Auth] Unexpected QR result type:', (result as any).className);
       return false;
-    } catch {
-      return false;
+    } catch (err: any) {
+      console.log('[Auth] QR check error:', err.errorMessage || err.message);
+      throw err;
     }
   }
 
   async onAuthorized(): Promise<void> {
     if (!this.client) return;
-    // Save session
     const sessionStr = (this.client.session as any).save();
     db.prepare('INSERT OR REPLACE INTO auth_state (key, value) VALUES (?, ?)').run('session', sessionStr);
 
@@ -235,14 +302,44 @@ class TelegramService {
         if (!chatEntity) return;
 
         const chatId = Number(chatEntity.id);
+        
+        const existing = db.prepare("SELECT id FROM messages WHERE id = ?").get(msg.id);
+        if (existing) {
+          const chat = this.mapChat(chatEntity, msg);
+          const message = await this.mapMessage(msg, chatId);
+          this.upsertChat(chat);
+          db.prepare("UPDATE chats SET last_message = ?, last_message_time = ? WHERE id = ?")
+            .run(message.text, message.timestamp, chatId);
+          return;
+        }
+
         const chat = this.mapChat(chatEntity, msg);
         const message = await this.mapMessage(msg, chatId);
 
-        // Update DB
         this.upsertChat(chat);
         this.insertMessage(message);
 
-        // Emit socket events
+        const isOutgoing = msg.out === true;
+        if (!isOutgoing) {
+          db.prepare('UPDATE chats SET unread_count = unread_count + 1, is_read = 0 WHERE id = ?').run(chatId);
+          const row = db.prepare('SELECT unread_count FROM chats WHERE id = ?').get(chatId) as any;
+          if (row) {
+            chat.unreadCount = row.unread_count || 1;
+            chat.isRead = false;
+          }
+          
+          if (message.text) {
+            const senderName = message.senderName || `${chat.firstName} ${chat.lastName}`.trim() || 'Unknown';
+            let actualSenderId = chatId;
+            if (chat.type !== 'private' && msg.senderId) {
+              actualSenderId = Number(msg.senderId);
+            }
+            this.checkAutoReply(chatId, message.text, actualSenderId, senderName, chat.type || 'private').catch(err => 
+              console.error('[AutoReply] Trigger error:', err)
+            );
+          }
+        }
+
         this.io?.emit('new-message', { chat, message });
         this.io?.emit('chat-update', { chat });
       } catch (err) {
@@ -300,7 +397,6 @@ class TelegramService {
           }
         }
 
-        // Save to DB
         const insert = db.prepare(`
           INSERT OR REPLACE INTO contacts (id, first_name, last_name, username, phone, avatar_color, online, last_seen)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -417,6 +513,30 @@ class TelegramService {
       }
     }
 
+    const msgType = getMessageType(msg);
+    let mediaUrl: string | undefined;
+    let fileName: string | undefined;
+    let fileSize: number | undefined;
+    let duration: number | undefined;
+
+    if (msg.media) {
+      if (msg.media instanceof Api.MessageMediaPhoto) {
+        mediaUrl = `/api/media/${chatId}/${msg.id}/photo`;
+      } else if (msg.media instanceof Api.MessageMediaDocument) {
+        const doc = msg.media.document;
+        if (doc instanceof Api.Document) {
+          fileSize = Number(doc.size);
+          const nameAttr = doc.attributes.find(a => a instanceof Api.DocumentAttributeFilename);
+          const videoAttr = doc.attributes.find(a => a instanceof Api.DocumentAttributeVideo);
+          const audioAttr = doc.attributes.find(a => a instanceof Api.DocumentAttributeAudio);
+          if (nameAttr) fileName = (nameAttr as any).fileName;
+          if (videoAttr) duration = (videoAttr as any).duration;
+          if (audioAttr) duration = (audioAttr as any).duration;
+          mediaUrl = `/api/media/${chatId}/${msg.id}/document`;
+        }
+      }
+    }
+
     return {
       id: msg.id,
       chatId,
@@ -426,10 +546,14 @@ class TelegramService {
       timestamp: msg.date * 1000,
       isOut: msg.out || false,
       isRead: msg.out ? (msg.mentioned ? false : true) : false,
-      type: getMessageType(msg),
+      type: msgType,
       replyToMsgId: msg.replyTo?.replyToMsgId,
       replyToText,
       replyToSender,
+      mediaUrl,
+      fileName,
+      fileSize,
+      duration,
     };
   }
 
@@ -446,16 +570,16 @@ class TelegramService {
 
   insertMessage(msg: Message): void {
     db.prepare(`
-      INSERT OR REPLACE INTO messages (id, chat_id, sender_id, sender_name, text, timestamp, is_out, is_read, type, reply_to_msg_id, reply_to_text, reply_to_sender)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT OR REPLACE INTO messages (id, chat_id, sender_id, sender_name, text, timestamp, is_out, is_read, type, reply_to_msg_id, reply_to_text, reply_to_sender, media_url, file_name, file_size, duration)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       msg.id, msg.chatId, msg.senderId || null, msg.senderName || '',
       msg.text, msg.timestamp, msg.isOut ? 1 : 0, msg.isRead ? 1 : 0,
-      msg.type, msg.replyToMsgId || null, msg.replyToText || '', msg.replyToSender || ''
+      msg.type, msg.replyToMsgId || null, msg.replyToText || '', msg.replyToSender || '',
+      msg.mediaUrl || '', msg.fileName || '', msg.fileSize || 0, msg.duration || 0
     );
   }
 
-  // API Methods
   async getChats(): Promise<Chat[]> {
     const rows = db.prepare(`
       SELECT * FROM chats ORDER BY pinned DESC, last_message_time DESC
@@ -478,6 +602,24 @@ class TelegramService {
   }
 
   async getMessages(chatId: number, offset: number = 0, limit: number = 50): Promise<Message[]> {
+    const localCount = (db.prepare("SELECT COUNT(*) as cnt FROM messages WHERE chat_id = ?").get(chatId) as any).cnt;
+
+    if (localCount === 0 && this.client && this.isReady) {
+      try {
+        console.log("[Telegram] No local messages for chat", chatId, "- fetching from API");
+        const apiMessages = await this.client.getMessages(chatId, { limit: 50 });
+        for (const msg of apiMessages) {
+          try {
+            const mapped = await this.mapMessage(msg as any, chatId);
+            this.insertMessage(mapped);
+          } catch (e) { /* skip */ }
+        }
+        console.log("[Telegram] Cached", apiMessages.length, "messages for chat", chatId);
+      } catch (err) {
+        console.error("[Telegram] Error fetching messages:", err);
+      }
+    }
+
     const rows = db.prepare(`
       SELECT * FROM messages WHERE chat_id = ? ORDER BY timestamp DESC LIMIT ? OFFSET ?
     `).all(chatId, limit, offset) as any[];
@@ -495,7 +637,7 @@ class TelegramService {
       replyToMsgId: r.reply_to_msg_id,
       replyToText: r.reply_to_text,
       replyToSender: r.reply_to_sender,
-      mediaUrl: r.media_url,
+      mediaUrl: r.media_url || (r.type === 'photo' || r.type === 'sticker' ? `/api/media/${r.chat_id}/${r.id}/photo` : (['video','document','voice'].includes(r.type) ? `/api/media/${r.chat_id}/${r.id}/document` : '')),
       fileName: r.file_name,
       fileSize: r.file_size,
       duration: r.duration,
@@ -514,12 +656,10 @@ class TelegramService {
     const message = await this.mapMessage(msg, chatId);
     this.insertMessage(message);
 
-    // Update chat last message
     db.prepare(`
       UPDATE chats SET last_message = ?, last_message_time = ? WHERE id = ?
     `).run(message.text, message.timestamp, chatId);
 
-    this.io?.emit('new-message', { message });
     return message;
   }
 
@@ -587,7 +727,6 @@ class TelegramService {
     );
 
     if (result && result.updates) {
-      // Find the chat in the updates
       for (const update of result.updates) {
         if (update instanceof Api.UpdateNewMessage && update.message instanceof Api.Message) {
           const peerId = update.message.peerId as any;
@@ -601,10 +740,105 @@ class TelegramService {
       }
     }
 
-    // Fallback: sync and return latest group
     await this.syncChats();
     const chats = await this.getChats();
     return chats.find((c) => c.type === 'group' || c.type === 'supergroup') || null;
+  }
+
+  async deleteMessage(chatId: number, messageId: number): Promise<void> {
+    if (!this.client || !this.isReady) throw new Error("Not authorized");
+    
+    await this.client.deleteMessages(chatId, [messageId], {
+      revoke: true,
+    });
+    
+    db.prepare("DELETE FROM messages WHERE id = ? AND chat_id = ?").run(messageId, chatId);
+    this.io?.emit("message-deleted", { chatId, messageId });
+  }
+
+  async editMessage(chatId: number, messageId: number, newText: string): Promise<Message | null> {
+    if (!this.client || !this.isReady) throw new Error("Not authorized");
+    
+    await this.client.editMessage(chatId, {
+      message: messageId,
+      text: newText,
+    });
+    
+    db.prepare("UPDATE messages SET text = ? WHERE id = ? AND chat_id = ?").run(newText, messageId, chatId);
+    
+    const msg = await this.client.getMessages(chatId, { ids: [new Api.InputMessageID({ id: messageId })] });
+    if (msg[0]) {
+      const mapped = await this.mapMessage(msg[0] as Api.Message, chatId);
+      this.io?.emit("message-edited", { chatId, message: mapped });
+      return mapped;
+    }
+    return null;
+  }
+
+  async sendMedia(chatId: number, fileBuffer: Buffer, fileName: string, caption?: string): Promise<Message | null> {
+    if (!this.client || !this.isReady) throw new Error("Not authorized");
+    
+    const isImage = /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(fileName);
+    
+    const attributes = [new Api.DocumentAttributeFilename({ fileName })];
+    
+    const result = await this.client.sendFile(chatId, {
+      file: fileBuffer,
+      caption: caption || "",
+      forceDocument: !isImage,
+      attributes,
+    });
+    
+    const msg = result as Api.Message;
+    const message = await this.mapMessage(msg, chatId);
+    this.insertMessage(message);
+    
+    db.prepare("UPDATE chats SET last_message = ?, last_message_time = ? WHERE id = ?")
+      .run(message.text, message.timestamp, chatId);
+    
+    return message;
+  }
+
+  async getUserStatus(userId: number): Promise<{ online: boolean; lastSeen?: string }> {
+    if (!this.client || !this.isReady) return { online: false };
+    
+    try {
+      const user = await this.client.getEntity(userId);
+      if (user instanceof Api.User && user.status) {
+        if (user.status instanceof Api.UserStatusOnline) {
+          return { online: true };
+        } else if (user.status instanceof Api.UserStatusRecently) {
+          return { online: false, lastSeen: "最近在线" };
+        } else if (user.status instanceof Api.UserStatusLastWeek) {
+          return { online: false, lastSeen: "一周内" };
+        } else if (user.status instanceof Api.UserStatusLastMonth) {
+          return { online: false, lastSeen: "一个月内" };
+        } else if (user.status instanceof Api.UserStatusOffline && user.status.wasOnline) {
+          const lastSeen = new Date(user.status.wasOnline * 1000);
+          return { online: false, lastSeen: lastSeen.toLocaleString("zh-CN") };
+        }
+      }
+      return { online: false };
+    } catch {
+      return { online: false };
+    }
+  }
+
+  async forwardMessage(fromChatId: number, toChatId: number, messageId: number): Promise<Message | null> {
+    if (!this.client || !this.isReady) throw new Error("Not authorized");
+    
+    const result = await this.client.forwardMessages(toChatId, {
+      messages: [messageId],
+      fromPeer: fromChatId,
+    });
+    
+    if (result[0]) {
+      const msg = result[0] as Api.Message;
+      const message = await this.mapMessage(msg, toChatId);
+      this.insertMessage(message);
+      return message;
+    }
+    return null;
   }
 
   async togglePinChat(chatId: number, pinned: boolean): Promise<void> {
@@ -620,6 +854,7 @@ class TelegramService {
         // ignore
       }
     }
+    this.io?.emit('chat-update', { chat: { id: chatId, unreadCount: 0, isRead: true } as any });
   }
 
   async logout(): Promise<void> {
@@ -654,6 +889,95 @@ class TelegramService {
       username: this.me.username || '',
       phone: this.me.phone || '',
     };
+  }
+
+  async checkAutoReply(chatId: number, text: string, senderId: number, senderName: string, chatType: string): Promise<void> {
+    if (!this.client || !this.isReady || !text) return;
+    
+    const botRow = db.prepare("SELECT value FROM auth_state WHERE key = 'bot_enabled'").get() as any;
+    if (botRow && Number(botRow.value) !== 1) return;
+    
+    try {
+      const rules = db.prepare('SELECT * FROM auto_replies WHERE is_active = 1').all() as any[];
+      const now = Math.floor(Date.now() / 1000);
+      const matched: any[] = [];
+      
+      for (const rule of rules) {
+        const scopes = (rule.scope || 'private').split(',');
+        const isBoth = scopes.includes('both');
+        if (chatType === 'private' && !isBoth && !scopes.includes('private')) continue;
+        if ((chatType === 'group' || chatType === 'supergroup' || chatType === 'channel') && !isBoth && !scopes.includes('group')) continue;
+        
+        let isMatch = false;
+        const keyword = rule.keyword.toLowerCase();
+        const inputText = text.toLowerCase();
+        
+        switch (rule.match_type) {
+          case 'exact': isMatch = inputText === keyword; break;
+          case 'starts': isMatch = inputText.startsWith(keyword); break;
+          case 'ends': isMatch = inputText.endsWith(keyword); break;
+          case 'contains': default: isMatch = inputText.includes(keyword); break;
+        }
+        
+        if (isMatch) {
+          if (rule.cooldown > 0) {
+            const cdRow = db.prepare('SELECT last_replied_at FROM auto_reply_cooldowns WHERE rule_id = ? AND user_id = ?').get(rule.id, senderId) as any;
+            if (cdRow && (now - cdRow.last_replied_at) < rule.cooldown) {
+              console.log(`[AutoReply] Rule ${rule.id} skipped: cooldown for user ${senderId}`);
+              continue;
+            }
+          }
+          matched.push(rule);
+        }
+      }
+      
+      if (matched.length === 0) return;
+      
+      const rule = matched[Math.floor(Math.random() * matched.length)];
+      console.log(`[AutoReply] Matched rule ${rule.id}: "${rule.keyword}" -> ${chatType === 'private' ? 'reply in chat' : 'DM user'} ${senderId}`);
+      
+      const dMin = rule.delay_min || 0;
+      const dMax = rule.delay_max || 0;
+      let delay = 0;
+      if (dMax > dMin) {
+        delay = Math.floor(Math.random() * (dMax - dMin + 1)) + dMin;
+      } else if (dMin > 0) {
+        delay = dMin;
+      }
+      
+      const doReply = async () => {
+        try {
+          if (chatType === 'private') {
+            await this.client!.sendMessage(chatId, { message: rule.reply_text });
+          } else {
+            await this.client!.sendMessage(senderId, { message: rule.reply_text });
+            console.log(`[AutoReply] Sent DM to user ${senderId} (triggered from group ${chatId})`);
+          }
+          
+          db.prepare('UPDATE auto_replies SET match_count = match_count + 1 WHERE id = ?').run(rule.id);
+          
+          if (rule.cooldown > 0) {
+            db.prepare('INSERT OR REPLACE INTO auto_reply_cooldowns (rule_id, user_id, last_replied_at) VALUES (?, ?, ?)').run(rule.id, senderId, now);
+          }
+          
+          db.prepare(`
+            INSERT INTO auto_reply_logs (rule_id, from_user_id, from_user_name, keyword, reply_text)
+            VALUES (?, ?, ?, ?, ?)
+          `).run(rule.id, senderId, senderName, rule.keyword, rule.reply_text);
+        } catch (sendErr) {
+          console.error('[AutoReply] Send error:', sendErr);
+        }
+      };
+      
+      if (delay > 0) {
+        console.log(`[AutoReply] Delaying ${delay}s before reply`);
+        setTimeout(doReply, delay * 1000);
+      } else {
+        await doReply();
+      }
+    } catch (err) {
+      console.error('[AutoReply] Error:', err);
+    }
   }
 }
 

@@ -9,9 +9,10 @@ interface SidebarProps {
   loading: boolean;
   onSelectChat: (chatId: number) => void;
   onTogglePin: (chatId: number, pinned: boolean) => void;
+  onBotClick?: () => void;
 }
 
-export default function Sidebar({ chats, selectedChatId, loading, onSelectChat, onTogglePin }: SidebarProps) {
+export default function Sidebar({ chats, selectedChatId, loading, onSelectChat, onTogglePin, onBotClick }: SidebarProps) {
   const [search, setSearch] = useState('');
 
   const filteredChats = chats.filter((chat) => {
@@ -29,7 +30,7 @@ export default function Sidebar({ chats, selectedChatId, loading, onSelectChat, 
           </svg>
           <input
             type="text"
-            placeholder="Search chats..."
+            placeholder="搜索聊天..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-10 pr-4 py-2.5 bg-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:bg-white transition-all"
@@ -56,7 +57,7 @@ export default function Sidebar({ chats, selectedChatId, loading, onSelectChat, 
             <svg className="w-12 h-12 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
             </svg>
-            <p className="text-sm">No chats found</p>
+            <p className="text-sm">暂无聊天</p>
           </div>
         ) : (
           filteredChats.map((chat) => (
@@ -69,7 +70,8 @@ export default function Sidebar({ chats, selectedChatId, loading, onSelectChat, 
             />
           ))
         )}
-      </div>
+      
+</div>
     </div>
   );
 }
@@ -84,8 +86,8 @@ interface ChatItemProps {
 function ChatItem({ chat, isSelected, onClick, onTogglePin }: ChatItemProps) {
   const [showMenu, setShowMenu] = useState(false);
   const name = chat.type === 'private'
-    ? `${chat.firstName || ''} ${chat.lastName || ''}`.trim() || 'Unknown'
-    : chat.title || 'Unknown';
+    ? `${chat.firstName || ''} ${chat.lastName || ''}`.trim() || '未知'
+    : chat.title || '未知';
 
   return (
     <div
@@ -120,7 +122,7 @@ function ChatItem({ chat, isSelected, onClick, onTogglePin }: ChatItemProps) {
         </div>
         <div className="flex items-center justify-between mt-0.5">
           <p className="text-sm text-gray-500 truncate pr-2">
-            {chat.lastMessage || 'No messages yet'}
+            {chat.lastMessage || '暂无消息'}
           </p>
           <div className="flex items-center gap-1 shrink-0">
             {chat.pinned && (
@@ -154,7 +156,7 @@ function ChatItem({ chat, isSelected, onClick, onTogglePin }: ChatItemProps) {
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
               </svg>
-              {chat.pinned ? 'Unpin' : 'Pin'}
+              {chat.pinned ? '取消置顶' : '置顶'}
             </button>
           </div>
         </>

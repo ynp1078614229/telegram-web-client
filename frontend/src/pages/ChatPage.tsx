@@ -1,19 +1,22 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 import { getSocket, disconnectSocket } from '../services/socket';
 import type { Chat, Message, Contact } from '../types';
 import Sidebar from '../components/Sidebar';
+import { Link } from 'react-router-dom';
 import ChatWindow from '../components/ChatWindow';
 import ContactsPage from './ContactsPage';
 import GroupsPage from './GroupsPage';
 import SettingsPage from './SettingsPage';
+import BotSettingsPage from './BotSettingsPage';
 
 interface ChatPageProps {
   user: any;
   onLogout: () => void;
 }
 
-type NavTab = 'chats' | 'contacts' | 'groups' | 'settings';
+type NavTab = 'chats' | 'contacts' | 'groups' | 'settings' | 'bot';
 
 export default function ChatPage({ user, onLogout }: ChatPageProps) {
   const [activeTab, setActiveTab] = useState<NavTab>('chats');
@@ -22,10 +25,17 @@ export default function ChatPage({ user, onLogout }: ChatPageProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loadingChats, setLoadingChats] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
+  const [showMobileChat, setShowMobileChat] = useState(false);
+  const navigate = useNavigate();
 
-  // Load chats
   useEffect(() => {
     loadChats();
+  }, []);
+
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
   }, []);
 
   // Socket events
@@ -33,14 +43,53 @@ export default function ChatPage({ user, onLogout }: ChatPageProps) {
     const socket = getSocket();
 
     socket.on('new-message', (data: { chat?: Chat; message: Message }) => {
+      const isIncoming = !data.message.isOut;
+      const isOtherChat = data.message.chatId !== selectedChatId;
+
       if (data.message.chatId === selectedChatId) {
         setMessages((prev) => [...prev, data.message]);
       }
+
       if (data.chat) {
         setChats((prev) => {
+          const existing = prev.find((c) => c.id === data.chat!.id);
+          if (existing) {
+            const merged = {
+              ...existing,
+              lastMessage: data.chat!.lastMessage || existing.lastMessage,
+              lastMessageTime: data.chat!.lastMessageTime || existing.lastMessageTime,
+              unreadCount: isIncoming && isOtherChat ? (existing.unreadCount || 0) + 1 : existing.unreadCount,
+            };
+            if (isIncoming && isOtherChat) {
+              const filtered = prev.filter((c) => c.id !== data.chat!.id);
+              return [merged, ...filtered];
+            }
+            return prev.map((c) => c.id === data.chat!.id ? merged : c);
+          }
           const filtered = prev.filter((c) => c.id !== data.chat!.id);
           return [data.chat!, ...filtered];
         });
+      }
+
+      if (isIncoming && isOtherChat && 'Notification' in window && Notification.permission === 'granted') {
+        const chatName = data.chat?.title
+          || `${data.chat?.firstName || ''} ${data.chat?.lastName || ''}`.trim()
+          || '新消息';
+        const msgText = data.message.text || (data.message.mediaUrl ? '📷 图片' : '新消息');
+        try {
+          const notif = new Notification(chatName, {
+            body: msgText.length > 100 ? msgText.slice(0, 100) + '...' : msgText,
+            icon: '/favicon.ico',
+            tag: `chat-${data.message.chatId}`,
+          });
+          notif.onclick = () => {
+            window.focus();
+            handleSelectChat(data.message.chatId);
+            notif.close();
+          };
+        } catch (e) {
+          console.error('Notification error:', e);
+        }
       }
     });
 
@@ -48,10 +97,14 @@ export default function ChatPage({ user, onLogout }: ChatPageProps) {
       if (data.chats) {
         setChats(data.chats);
       } else if (data.chat) {
-        setChats((prev) => {
-          const filtered = prev.filter((c) => c.id !== data.chat!.id);
-          return [data.chat!, ...filtered];
-        });
+        setChats((prev) =>
+          prev.map((c) => {
+            if (c.id === data.chat!.id) {
+              return { ...c, ...data.chat! };
+            }
+            return c;
+          })
+        );
       }
     });
 
@@ -65,10 +118,24 @@ export default function ChatPage({ user, onLogout }: ChatPageProps) {
       );
     });
 
+    socket.on('message-deleted', (data: { chatId: number; messageId: number }) => {
+      if (data.chatId === selectedChatId) {
+        setMessages((prev) => prev.filter((m) => m.id !== data.messageId));
+      }
+    });
+
+    socket.on('message-edited', (data: { chatId: number; message: Message }) => {
+      if (data.chatId === selectedChatId) {
+        setMessages((prev) => prev.map((m) => m.id === data.message.id ? data.message : m));
+      }
+    });
+
     return () => {
       socket.off('new-message');
       socket.off('chat-update');
       socket.off('message-read');
+      socket.off('message-deleted');
+      socket.off('message-edited');
     };
   }, [selectedChatId]);
 
@@ -92,7 +159,6 @@ export default function ChatPage({ user, onLogout }: ChatPageProps) {
       } else {
         setMessages((prev) => [...res.messages, ...prev]);
       }
-      // Mark as read
       api.chats.markRead(chatId).catch(() => {});
     } catch (err) {
       console.error('Failed to load messages:', err);
@@ -104,6 +170,10 @@ export default function ChatPage({ user, onLogout }: ChatPageProps) {
     setSelectedChatId(chatId);
     setMessages([]);
     loadMessages(chatId);
+    setShowMobileChat(true);
+    setChats((prev) =>
+      prev.map((c) => (c.id === chatId ? { ...c, unreadCount: 0, isRead: true } : c))
+    );
   };
 
   const handleSendMessage = async (text: string, replyToMsgId?: number) => {
@@ -112,17 +182,63 @@ export default function ChatPage({ user, onLogout }: ChatPageProps) {
       const res = await api.chats.sendMessage(selectedChatId, text, replyToMsgId);
       if (res.message) {
         setMessages((prev) => [...prev, res.message]);
-        // Update chat list
-        setChats((prev) => {
-          const chat = prev.find((c) => c.id === selectedChatId);
-          if (!chat) return prev;
-          const updated = { ...chat, lastMessage: text, lastMessageTime: Date.now() };
-          const filtered = prev.filter((c) => c.id !== selectedChatId);
-          return [updated, ...filtered];
-        });
+        setChats((prev) =>
+          prev.map((c) =>
+            c.id === selectedChatId
+              ? { ...c, lastMessage: text, lastMessageTime: Date.now() }
+              : c
+          )
+        );
       }
     } catch (err) {
       console.error('Failed to send message:', err);
+    }
+  };
+
+  const handleDeleteMessage = async (messageId: number) => {
+    if (!selectedChatId) return;
+    try {
+      await api.chats.deleteMessage(selectedChatId, messageId);
+      setMessages((prev) => prev.filter((m) => m.id !== messageId));
+    } catch (err) {
+      console.error('Failed to delete message:', err);
+    }
+  };
+
+  const handleEditMessage = async (messageId: number, newText: string) => {
+    if (!selectedChatId) return;
+    try {
+      const res = await api.chats.editMessage(selectedChatId, messageId, newText);
+      if (res.message) {
+        setMessages((prev) => prev.map((m) => m.id === messageId ? res.message : m));
+      }
+    } catch (err) {
+      console.error('Failed to edit message:', err);
+    }
+  };
+
+  const handleSendMedia = async (file: File, caption?: string) => {
+    if (!selectedChatId) return;
+    try {
+      const res = await api.chats.sendMedia(selectedChatId, file, caption);
+      console.log('sendMedia response:', res);
+      if (res.error) {
+        alert('发送失败: ' + res.error);
+        return;
+      }
+      if (res.message) {
+        setMessages((prev) => [...prev, res.message]);
+        setChats((prev) =>
+          prev.map((c) =>
+            c.id === selectedChatId
+              ? { ...c, lastMessage: res.message.text || '📷 媒体文件', lastMessageTime: Date.now() }
+              : c
+          )
+        );
+      }
+    } catch (err: any) {
+      console.error('Failed to send media:', err);
+      alert('发送失败: ' + (err.message || '未知错误'));
     }
   };
 
@@ -152,24 +268,34 @@ export default function ChatPage({ user, onLogout }: ChatPageProps) {
         return <GroupsPage onChatSelect={(id) => { setActiveTab('chats'); handleSelectChat(id); }} onRefreshChats={loadChats} />;
       case 'settings':
         return <SettingsPage user={user} onLogout={onLogout} />;
+      case 'bot':
+        return <BotSettingsPage />;
       default:
         return (
-          <div className="flex flex-1 h-full">
-            <Sidebar
-              chats={chats}
-              selectedChatId={selectedChatId}
-              loading={loadingChats}
-              onSelectChat={handleSelectChat}
-              onTogglePin={handleTogglePin}
-            />
-            <ChatWindow
-              chat={selectedChat || null}
-              messages={messages}
-              loading={loadingMessages}
-              onSendMessage={handleSendMessage}
-              onLoadMore={handleLoadMore}
-              user={user}
-            />
+          <div className="flex flex-1 h-full overflow-hidden">
+            <div className={showMobileChat ? 'hidden md:flex' : 'flex'}>
+              <Sidebar
+                chats={chats}
+                selectedChatId={selectedChatId}
+                loading={loadingChats}
+                onSelectChat={handleSelectChat}
+                onTogglePin={handleTogglePin}
+              />
+            </div>
+            <div className={showMobileChat ? 'flex flex-1 min-w-0' : 'hidden md:flex md:flex-1 md:min-w-0'}>
+              <ChatWindow
+                chat={selectedChat || null}
+                messages={messages}
+                loading={loadingMessages}
+                onSendMessage={handleSendMessage}
+                onDeleteMessage={handleDeleteMessage}
+                onEditMessage={handleEditMessage}
+                onSendMedia={handleSendMedia}
+                onLoadMore={handleLoadMore}
+                user={user}
+                onBack={() => setShowMobileChat(false)}
+              />
+            </div>
           </div>
         );
     }
@@ -177,14 +303,14 @@ export default function ChatPage({ user, onLogout }: ChatPageProps) {
 
   return (
     <div className="h-screen flex flex-col bg-tg-bg">
-      {/* Top navigation */}
       <div className="bg-white border-b border-gray-200 flex items-center px-4 h-14 shrink-0">
         <div className="flex items-center gap-1">
           {[
-            { key: 'chats' as const, icon: ChatIcon, label: 'Chats' },
-            { key: 'contacts' as const, icon: ContactIcon, label: 'Contacts' },
-            { key: 'groups' as const, icon: GroupIcon, label: 'Groups' },
-            { key: 'settings' as const, icon: SettingsIcon, label: 'Settings' },
+            { key: 'chats' as const, icon: ChatIcon, label: '聊天' },
+            { key: 'contacts' as const, icon: ContactIcon, label: '联系人' },
+            { key: 'groups' as const, icon: GroupIcon, label: '群组' },
+            { key: 'settings' as const, icon: SettingsIcon, label: '设置' },
+            { key: 'bot' as const, icon: () => <span className="text-lg">🤖</span>, label: '机器人' },
           ].map((tab) => (
             <button
               key={tab.key}
@@ -202,7 +328,6 @@ export default function ChatPage({ user, onLogout }: ChatPageProps) {
         </div>
       </div>
 
-      {/* Main content */}
       <div className="flex-1 flex overflow-hidden">
         {renderContent()}
       </div>

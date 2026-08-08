@@ -34,6 +34,10 @@ export interface Message {
   replyToMsgId?: number;
   replyToText?: string;
   replyToSender?: string;
+  mediaUrl?: string;
+  fileName?: string;
+  fileSize?: number;
+  duration?: number;
 }
 
 export interface Contact {

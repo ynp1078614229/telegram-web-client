@@ -126,9 +126,9 @@ function ContactItem({ contact, onClick }: ContactItemProps) {
         <p className="font-medium text-gray-900 text-sm truncate">{name}</p>
         <p className="text-xs text-gray-500 truncate">
           {contact.online ? (
-            <span className="text-green-500">online</span>
+            <span className="text-green-500">在线</span>
           ) : (
-            contact.lastSeen ? `last seen ${contact.lastSeen}` : 'offline'
+            contact.lastSeen ? `最后上线 ${contact.lastSeen}` : '离线'
           )}
         </p>
       </div>

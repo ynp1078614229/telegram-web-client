@@ -12,7 +12,8 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
   const [phone, setPhone] = useState('+');
   const [code, setCode] = useState('');
   const [phoneCodeHash, setPhoneCodeHash] = useState('');
-  const [step, setStep] = useState<'phone' | 'code'>('phone');
+  const [step, setStep] = useState<'phone' | 'code' | '2fa'>('phone');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [qrData, setQrData] = useState<string>('');
@@ -45,11 +46,32 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
     setError('');
     try {
       const res = await api.auth.verifyCode(phone, code, phoneCodeHash);
-      if (res.success) {
+      if (res.success && res.user) {
         onLoginSuccess(res.user);
+      } else if (res.needs2FA) {
+        setStep('2fa');
+        setError('');
       }
     } catch (err: any) {
       setError(err.message || 'Verification failed');
+    }
+    setLoading(false);
+  };
+
+  const handleVerify2FA = async () => {
+    if (!password) {
+      setError('Please enter your 2FA password');
+      return;
+    }
+    setLoading(true);
+    setError('');
+    try {
+      const res = await api.auth.verify2FA(password);
+      if (res.success && res.user) {
+        onLoginSuccess(res.user);
+      }
+    } catch (err: any) {
+      setError(err.message || 'Password verification failed');
     }
     setLoading(false);
   };
@@ -77,7 +99,7 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
     if (!qrPolling || !qrToken) return;
     const interval = setInterval(async () => {
       try {
-        const res = await api.auth.qrCheck(qrToken);
+        const res = await api.auth.qrCheck();
         if (res.success && res.user) {
           setQrPolling(false);
           onLoginSuccess(res.user);
@@ -101,7 +123,7 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
             </svg>
           </div>
           <h1 className="text-2xl font-bold text-gray-800">Telegram Web</h1>
-          <p className="text-gray-500 text-sm mt-1">Sign in to your account</p>
+          <p className="text-gray-500 text-sm mt-1">登录你的账号</p>
         </div>
 
         {/* Mode tabs */}
@@ -130,16 +152,16 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
           </div>
         )}
 
-        {/* Phone login */}
+        {/* Phone login - step 1: enter phone */}
         {mode === 'phone' && step === 'phone' && (
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">手机号</label>
               <input
                 type="tel"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
-                placeholder="+1234567890"
+                placeholder="+手机号"
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
                 onKeyDown={(e) => e.key === 'Enter' && handleSendCode()}
               />
@@ -154,6 +176,7 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
           </div>
         )}
 
+        {/* Phone login - step 2: enter code */}
         {mode === 'phone' && step === 'code' && (
           <div className="space-y-4">
             <div>
@@ -183,6 +206,36 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
               className="w-full py-3 bg-primary text-white rounded-lg font-medium hover:bg-primary-dark transition-colors disabled:opacity-50"
             >
               {loading ? 'Verifying...' : 'Verify'}
+            </button>
+          </div>
+        )}
+
+        {/* Phone login - step 3: 2FA password */}
+        {mode === 'phone' && step === '2fa' && (
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                两步验证密码
+              </label>
+              <p className="text-xs text-gray-500 mb-2">
+                你的账号启用了两步验证，请输入密码
+              </p>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="输入两步验证密码"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all text-center text-lg tracking-widest"
+                onKeyDown={(e) => e.key === 'Enter' && handleVerify2FA()}
+                autoFocus
+              />
+            </div>
+            <button
+              onClick={handleVerify2FA}
+              disabled={loading}
+              className="w-full py-3 bg-primary text-white rounded-lg font-medium hover:bg-primary-dark transition-colors disabled:opacity-50"
+            >
+              {loading ? 'Verifying...' : 'Verify Password'}
             </button>
           </div>
         )}

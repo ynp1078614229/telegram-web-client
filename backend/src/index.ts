@@ -6,6 +6,8 @@ import { Server } from 'socket.io';
 import authRoutes from './routes/auth.js';
 import chatRoutes from './routes/chats.js';
 import contactRoutes from './routes/contacts.js';
+import mediaRoutes from './routes/media.js';
+import botRoutes from './routes/bot.js';
 import { telegramService } from './services/telegram.js';
 
 const PORT = parseInt(process.env.BACKEND_PORT || '3001');
@@ -29,6 +31,8 @@ app.use(express.json());
 app.use('/api/auth', authRoutes);
 app.use('/api/chats', chatRoutes);
 app.use('/api/contacts', contactRoutes);
+app.use('/api/media', mediaRoutes);
+app.use('/api/bot', botRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

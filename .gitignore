@@ -1,59 +1,45 @@
-node_modules
-dist
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Environment & secrets
+.env
+backend/.env
+*.db
+*.db-shm
+*.db-wal
+
+# Backup files
+*.bak
+*.bak2
+*.bak3
+*.bak4
+*.ts.bak*
+
+# OS & editor
 .DS_Store
 *.swp
-.git/*
 __pycache__/
 *.pyc
-.venv/*
+.venv/
 *.o
 *.a
-/vendor
+vendor/
 *.egg-info/
-/.env
-.env
-.cozeproj/reduction
 
-# JS/TS bundlers & build outputs
-.next
-.nuxt
-.turbo
-.vercel
-.parcel-cache
-.cache
-coverage
-storybook-static
-
-# Package manager artifacts
-.pnp*
-.npm
-
-# Python tooling
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-.tox/
-
-# Go tooling
-bin/
-*.test
-
-# Editor / IDE
+# IDE
 .vscode/
 .idea/
 *.iml
 
-# OS / misc
-Thumbs.db
-ehthumbs.db
-
 # Logs
-output.log
 *.log
 *.log.*
 logs/
 
-# 视频文件
+# Media files
 *.mp4
 *.avi
 *.mov
@@ -69,14 +55,14 @@ logs/
 *.rmvb
 *.vob
 
-# 归档文件
+# Archives
 *.iso
 *.dmg
 *.rar
 *.zip
 *.gz
 
-# 文档类也默认加入
+# Documents
 *.pdf
 *.docx
 *.doc
@@ -84,11 +70,19 @@ logs/
 *.xls
 *.ppt
 *.pptx
-*.xlsx
 *.csv
 
-# Preview files
+# Coze
+.coze
+.cozeproj/
+.codegraph
+
+# Preview
 .preview
 
-# CodeGraph index
-.codegraph
+# TypeScript build info
+tsconfig.tsbuildinfo
+
+# Misc
+*.txt
+assets/

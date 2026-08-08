@@ -7,7 +7,7 @@ export function formatTime(timestamp: number): string {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
   }
   if (diffDays === 1) {
-    return 'Yesterday';
+    return '昨天';
   }
   if (diffDays < 7) {
     return date.toLocaleDateString([], { weekday: 'short' });
@@ -25,7 +25,7 @@ export function formatDateSeparator(timestamp: number): string {
   const now = new Date();
   const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
 
-  if (diffDays === 0) return 'Today';
-  if (diffDays === 1) return 'Yesterday';
+  if (diffDays === 0) return '今天';
+  if (diffDays === 1) return '昨天';
   return date.toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' });
 }

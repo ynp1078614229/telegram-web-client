@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { api } from './services/api';
 import LoginPage from './pages/LoginPage';
 import ChatPage from './pages/ChatPage';
+import BotSettingsPage from './pages/BotSettingsPage';
 
 function App() {
   const [isAuth, setIsAuth] = useState<boolean | null>(null);
@@ -52,7 +53,13 @@ function App() {
     return <LoginPage onLoginSuccess={handleLoginSuccess} />;
   }
 
-  return <ChatPage user={user} onLogout={handleLogout} />;
+  return (
+    <Routes>
+      <Route path="/chat" element={<ChatPage user={user} onLogout={handleLogout} />} />
+      <Route path="/bot" element={<BotSettingsPage />} />
+      <Route path="*" element={<Navigate to="/chat" replace />} />
+    </Routes>
+  );
 }
 
 export default App;
