@@ -363,7 +363,7 @@ class TelegramService {
         this.upsertChat(chat);
       }
 
-      this.io?.emit('chat-update', { chats });
+      if (chats.length > 0) { this.io?.emit('chat-update', { chats }); }
     } catch (err) {
       console.error('[Telegram] Error syncing chats:', err);
     }

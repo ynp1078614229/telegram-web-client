@@ -6,6 +6,7 @@ import type { Chat, Message, Contact } from '../types';
 import Sidebar from '../components/Sidebar';
 import { Link } from 'react-router-dom';
 import ChatWindow from '../components/ChatWindow';
+import ErrorBoundary from '../components/ErrorBoundary';
 import ContactsPage from './ContactsPage';
 import GroupsPage from './GroupsPage';
 import SettingsPage from './SettingsPage';
@@ -94,7 +95,7 @@ export default function ChatPage({ user, onLogout }: ChatPageProps) {
     });
 
     socket.on('chat-update', (data: { chat?: Chat; chats?: Chat[] }) => {
-      if (data.chats) {
+      if (data.chats && data.chats.length > 0) {
         setChats(data.chats);
       } else if (data.chat) {
         setChats((prev) =>
@@ -124,6 +125,7 @@ export default function ChatPage({ user, onLogout }: ChatPageProps) {
       }
     });
 
+    socket.on('connect', () => {      console.log('[Socket] Reconnected, reloading chats...');      loadChats();    });
     socket.on('message-edited', (data: { chatId: number; message: Message }) => {
       if (data.chatId === selectedChatId) {
         setMessages((prev) => prev.map((m) => m.id === data.message.id ? data.message : m));
@@ -135,6 +137,7 @@ export default function ChatPage({ user, onLogout }: ChatPageProps) {
       socket.off('chat-update');
       socket.off('message-read');
       socket.off('message-deleted');
+      socket.off('connect');
       socket.off('message-edited');
     };
   }, [selectedChatId]);
@@ -282,7 +285,8 @@ export default function ChatPage({ user, onLogout }: ChatPageProps) {
                 onTogglePin={handleTogglePin}
               />
             </div>
-            <div className={showMobileChat ? 'flex flex-1 min-w-0' : 'hidden md:flex md:flex-1 md:min-w-0'}>
+            <div className={showMobileChat ? "flex flex-1 min-w-0" : "hidden md:flex md:flex-1 md:min-w-0"}>
+                <ErrorBoundary>
               <ChatWindow
                 chat={selectedChat || null}
                 messages={messages}
@@ -295,6 +299,7 @@ export default function ChatPage({ user, onLogout }: ChatPageProps) {
                 user={user}
                 onBack={() => setShowMobileChat(false)}
               />
+                </ErrorBoundary>
             </div>
           </div>
         );
