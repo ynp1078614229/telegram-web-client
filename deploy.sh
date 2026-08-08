@@ -13,6 +13,9 @@
 # 环境要求: Ubuntu 20.04+ / Debian 11+, root 权限
 # ============================================
 
+export DEBIAN_FRONTEND=noninteractive
+export NEEDRESTART_MODE=a
+export NEEDRESTART_SUSPEND=1
 set -e
 
 DOMAIN=${1:-_}
@@ -40,8 +43,8 @@ echo ""
 
 # 1. System packages
 info "安装系统依赖..."
-apt-get update -qq
-apt-get install -y -qq build-essential python3 curl git > /dev/null
+apt-get update
+apt-get install -y build-essential python3 curl git
 
 # 2. Node.js
 if command -v node &> /dev/null; then
@@ -49,7 +52,7 @@ if command -v node &> /dev/null; then
 else
     info "安装 Node.js ${NODE_VERSION}..."
     curl -fsSL https://deb.nodesource.com/setup_${NODE_VERSION}.x | bash - > /dev/null 2>&1
-    apt-get install -y -qq nodejs > /dev/null
+    apt-get install -y nodejs
     info "Node.js $(node -v) 安装完成"
 fi
 
@@ -67,7 +70,7 @@ info "PM2 $(pm2 -v)"
 
 # 5. Nginx
 if ! command -v nginx &> /dev/null; then
-    apt-get install -y -qq nginx > /dev/null
+    apt-get install -y nginx
 fi
 info "Nginx 已就绪"
 
