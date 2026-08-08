@@ -121,10 +121,8 @@ log "源码部署完成"
 # ============================================================
 log "安装后端依赖..."
 cd "${APP_DIR}/backend"
-pnpm install --prod=false > /dev/null 2>&1
-
-log "编译原生模块 (better-sqlite3)..."
-pnpm rebuild better-sqlite3 > /dev/null 2>&1
+rm -rf node_modules
+pnpm install --prod=false 2>&1 | tail -5
 
 log "构建后端 TypeScript..."
 pnpm run build > /dev/null 2>&1
@@ -144,7 +142,8 @@ log "后端构建完成"
 # ============================================================
 log "安装前端依赖..."
 cd "${APP_DIR}/frontend"
-pnpm install > /dev/null 2>&1
+rm -rf node_modules
+pnpm install 2>&1 | tail -5
 
 log "构建前端生产版本..."
 pnpm run build > /dev/null 2>&1
