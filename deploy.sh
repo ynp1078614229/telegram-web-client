@@ -122,10 +122,10 @@ fi
 info "安装后端依赖..."
 cd "$DEPLOY_DIR/backend"
 rm -rf node_modules
-pnpm install --silent 2>/dev/null || pnpm install
+npm install
 
 info "编译后端..."
-pnpm rebuild better-sqlite3 2>/dev/null || true
+# native modules auto-built with npm
 pnpm run build
 
 # 10. Frontend
