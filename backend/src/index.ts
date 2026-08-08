@@ -8,6 +8,7 @@ import chatRoutes from './routes/chats.js';
 import contactRoutes from './routes/contacts.js';
 import mediaRoutes from './routes/media.js';
 import botRoutes from './routes/bot.js';
+import accessRoutes from './routes/access.js';
 import { telegramService } from './services/telegram.js';
 
 const PORT = parseInt(process.env.BACKEND_PORT || '3001');
@@ -33,6 +34,7 @@ app.use('/api/chats', chatRoutes);
 app.use('/api/contacts', contactRoutes);
 app.use('/api/media', mediaRoutes);
 app.use('/api/bot', botRoutes);
+app.use('/api/access', accessRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
