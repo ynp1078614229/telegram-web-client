@@ -1,0 +1,110 @@
+
+root@VM-0995WZUY /opt/telegram-web/backend $ pm2 logs telegram-web-backend --lines 30
+[TAILING] Tailing last 30 lines for [telegram-web-backend] process (change the value with --lines option)
+/root/.pm2/logs/telegram-web-backend-out.log last 30 lines:
+/root/.pm2/logs/telegram-web-backend-error.log last 30 lines:
+0|telegram | 2026-08-09T01:53:03:  → /opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/Debug/better_sqlite3.node
+0|telegram | 2026-08-09T01:53:03:  → /opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/out/Release/better_sqlite3.node
+0|telegram | 2026-08-09T01:53:03:  → /opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/Release/better_sqlite3.node
+0|telegram | 2026-08-09T01:53:03:  → /opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/build/default/better_sqlite3.node
+0|telegram | 2026-08-09T01:53:03:  → /opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/compiled/20.20.2/linux/x64/better_sqlite3.node
+0|telegram | 2026-08-09T01:53:03:  → /opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/addon-build/release/install-root/better_sqlite3.node
+0|telegram | 2026-08-09T01:53:03:  → /opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/addon-build/debug/install-root/better_sqlite3.node
+0|telegram | 2026-08-09T01:53:03:  → /opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/addon-build/default/install-root/better_sqlite3.node
+0|telegram | 2026-08-09T01:53:03:  → /opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/lib/binding/node-v115-linux-x64/better_sqlite3.node
+0|telegram | 2026-08-09T01:53:03:     at bindings (/opt/telegram-web/backend/node_modules/.pnpm/bindings@1.5.0/node_modules/bindings/bindings.js:126:9)
+0|telegram | 2026-08-09T01:53:03:     at new Database (/opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/lib/database.js:48:64)
+0|telegram | 2026-08-09T01:53:03:     at file:///opt/telegram-web/backend/dist/db/database.js:12:12
+0|telegram | 2026-08-09T01:53:03:     at ModuleJob.run (node:internal/modules/esm/module_job:325:25)
+0|telegram | 2026-08-09T01:53:03:     at async ModuleLoader.import (node:internal/modules/esm/loader:606:24) {
+0|telegram | 2026-08-09T01:53:03:   tries: [
+0|telegram | 2026-08-09T01:53:03:     '/opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/build/better_sqlite3.node',
+0|telegram | 2026-08-09T01:53:03:     '/opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/build/Debug/better_sqlite3.node',
+0|telegram | 2026-08-09T01:53:03:     '/opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/build/Release/better_sqlite3.node',
+0|telegram | 2026-08-09T01:53:03:     '/opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/out/Debug/better_sqlite3.node',
+0|telegram | 2026-08-09T01:53:03:     '/opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/Debug/better_sqlite3.node',
+0|telegram | 2026-08-09T01:53:03:     '/opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/out/Release/better_sqlite3.node',
+0|telegram | 2026-08-09T01:53:03:     '/opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/Release/better_sqlite3.node',
+0|telegram | 2026-08-09T01:53:03:     '/opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/build/default/better_sqlite3.node',
+0|telegram | 2026-08-09T01:53:03:     '/opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/compiled/20.20.2/linux/x64/better_sqlite3.node',
+0|telegram | 2026-08-09T01:53:03:     '/opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/addon-build/release/install-root/better_sqlite3.node',
+0|telegram | 2026-08-09T01:53:03:     '/opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/addon-build/debug/install-root/better_sqlite3.node',
+0|telegram | 2026-08-09T01:53:03:     '/opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/addon-build/default/install-root/better_sqlite3.node',
+0|telegram | 2026-08-09T01:53:03:     '/opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/lib/binding/node-v115-linux-x64/better_sqlite3.node'
+0|telegram | 2026-08-09T01:53:03:   ]
+0|telegram | 2026-08-09T01:53:03: }
+
+0|telegram-web-backend  | 2026-08-09T01:53:07: Error: Could not locate the bindings file. Tried:
+0|telegram-web-backend  | 2026-08-09T01:53:07:  → /opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/build/better_sqlite3.node
+0|telegram-web-backend  | 2026-08-09T01:53:07:  → /opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/build/Debug/better_sqlite3.node
+0|telegram-web-backend  | 2026-08-09T01:53:07:  → /opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/build/Release/better_sqlite3.node
+0|telegram-web-backend  | 2026-08-09T01:53:07:  → /opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/out/Debug/better_sqlite3.node
+0|telegram-web-backend  | 2026-08-09T01:53:07:  → /opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/Debug/better_sqlite3.node
+0|telegram-web-backend  | 2026-08-09T01:53:07:  → /opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/out/Release/better_sqlite3.node
+0|telegram-web-backend  | 2026-08-09T01:53:07:  → /opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/Release/better_sqlite3.node
+0|telegram-web-backend  | 2026-08-09T01:53:07:  → /opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/build/default/better_sqlite3.node
+0|telegram-web-backend  | 2026-08-09T01:53:07:  → /opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/compiled/20.20.2/linux/x64/better_sqlite3.node
+0|telegram-web-backend  | 2026-08-09T01:53:07:  → /opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/addon-build/release/install-root/better_sqlite3.node
+0|telegram-web-backend  | 2026-08-09T01:53:07:  → /opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/addon-build/debug/install-root/better_sqlite3.node
+0|telegram-web-backend  | 2026-08-09T01:53:07:  → /opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/addon-build/default/install-root/better_sqlite3.node
+0|telegram-web-backend  | 2026-08-09T01:53:07:  → /opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/lib/binding/node-v115-linux-x64/better_sqlite3.node
+0|telegram-web-backend  | 2026-08-09T01:53:07:     at bindings (/opt/telegram-web/backend/node_modules/.pnpm/bindings@1.5.0/node_modules/bindings/bindings.js:126:9)
+0|telegram-web-backend  | 2026-08-09T01:53:07:     at new Database (/opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/lib/database.js:48:64)
+0|telegram-web-backend  | 2026-08-09T01:53:07:     at file:///opt/telegram-web/backend/dist/db/database.js:12:12
+0|telegram-web-backend  | 2026-08-09T01:53:07:     at ModuleJob.run (node:internal/modules/esm/module_job:325:25)
+0|telegram-web-backend  | 2026-08-09T01:53:07:     at async ModuleLoader.import (node:internal/modules/esm/loader:606:24) {
+0|telegram-web-backend  | 2026-08-09T01:53:07:   tries: [
+0|telegram-web-backend  | 2026-08-09T01:53:07:     '/opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/build/better_sqlite3.node',
+0|telegram-web-backend  | 2026-08-09T01:53:07:     '/opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/build/Debug/better_sqlite3.node',
+0|telegram-web-backend  | 2026-08-09T01:53:07:     '/opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/build/Release/better_sqlite3.node',
+0|telegram-web-backend  | 2026-08-09T01:53:07:     '/opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/out/Debug/better_sqlite3.node',
+0|telegram-web-backend  | 2026-08-09T01:53:07:     '/opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/Debug/better_sqlite3.node',
+0|telegram-web-backend  | 2026-08-09T01:53:07:     '/opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/out/Release/better_sqlite3.node',
+0|telegram-web-backend  | 2026-08-09T01:53:07:     '/opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/Release/better_sqlite3.node',
+0|telegram-web-backend  | 2026-08-09T01:53:07:     '/opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/build/default/better_sqlite3.node',
+0|telegram-web-backend  | 2026-08-09T01:53:07:     '/opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/compiled/20.20.2/linux/x64/better_sqlite3.node',
+0|telegram-web-backend  | 2026-08-09T01:53:07:     '/opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/addon-build/release/install-root/better_sqlite3.node',
+0|telegram-web-backend  | 2026-08-09T01:53:07:     '/opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/addon-build/debug/install-root/better_sqlite3.node',
+0|telegram-web-backend  | 2026-08-09T01:53:07:     '/opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/addon-build/default/install-root/better_sqlite3.node',
+0|telegram-web-backend  | 2026-08-09T01:53:07:     '/opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/lib/binding/node-v115-linux-x64/better_sqlite3.node'
+0|telegram-web-backend  | 2026-08-09T01:53:07:   ]
+0|telegram-web-backend  | 2026-08-09T01:53:07: }
+0|telegram-web-backend  | 2026-08-09T01:53:09: Error: Could not locate the bindings file. Tried:
+0|telegram-web-backend  | 2026-08-09T01:53:09:  → /opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/build/better_sqlite3.node
+0|telegram-web-backend  | 2026-08-09T01:53:09:  → /opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/build/Debug/better_sqlite3.node
+0|telegram-web-backend  | 2026-08-09T01:53:09:  → /opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/build/Release/better_sqlite3.node
+0|telegram-web-backend  | 2026-08-09T01:53:09:  → /opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/out/Debug/better_sqlite3.node
+0|telegram-web-backend  | 2026-08-09T01:53:09:  → /opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/Debug/better_sqlite3.node
+0|telegram-web-backend  | 2026-08-09T01:53:09:  → /opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/out/Release/better_sqlite3.node
+0|telegram-web-backend  | 2026-08-09T01:53:09:  → /opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/Release/better_sqlite3.node
+0|telegram-web-backend  | 2026-08-09T01:53:09:  → /opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/build/default/better_sqlite3.node
+0|telegram-web-backend  | 2026-08-09T01:53:09:  → /opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/compiled/20.20.2/linux/x64/better_sqlite3.node
+0|telegram-web-backend  | 2026-08-09T01:53:09:  → /opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/addon-build/release/install-root/better_sqlite3.node
+0|telegram-web-backend  | 2026-08-09T01:53:09:  → /opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/addon-build/debug/install-root/better_sqlite3.node
+0|telegram-web-backend  | 2026-08-09T01:53:09:  → /opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/addon-build/default/install-root/better_sqlite3.node
+0|telegram-web-backend  | 2026-08-09T01:53:09:  → /opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/lib/binding/node-v115-linux-x64/better_sqlite3.node
+0|telegram-web-backend  | 2026-08-09T01:53:09:     at bindings (/opt/telegram-web/backend/node_modules/.pnpm/bindings@1.5.0/node_modules/bindings/bindings.js:126:9)
+0|telegram-web-backend  | 2026-08-09T01:53:09:     at new Database (/opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/lib/database.js:48:64)
+0|telegram-web-backend  | 2026-08-09T01:53:09:     at file:///opt/telegram-web/backend/dist/db/database.js:12:12
+0|telegram-web-backend  | 2026-08-09T01:53:09:     at ModuleJob.run (node:internal/modules/esm/module_job:325:25)
+0|telegram-web-backend  | 2026-08-09T01:53:09:     at async ModuleLoader.import (node:internal/modules/esm/loader:606:24) {
+0|telegram-web-backend  | 2026-08-09T01:53:09:   tries: [
+0|telegram-web-backend  | 2026-08-09T01:53:09:     '/opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/build/better_sqlite3.node',
+0|telegram-web-backend  | 2026-08-09T01:53:09:     '/opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/build/Debug/better_sqlite3.node',
+0|telegram-web-backend  | 2026-08-09T01:53:09:     '/opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/build/Release/better_sqlite3.node',
+0|telegram-web-backend  | 2026-08-09T01:53:09:     '/opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/out/Debug/better_sqlite3.node',
+0|telegram-web-backend  | 2026-08-09T01:53:09:     '/opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/Debug/better_sqlite3.node',
+0|telegram-web-backend  | 2026-08-09T01:53:09:     '/opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/out/Release/better_sqlite3.node',
+0|telegram-web-backend  | 2026-08-09T01:53:09:     '/opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/Release/better_sqlite3.node',
+0|telegram-web-backend  | 2026-08-09T01:53:09:     '/opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/build/default/better_sqlite3.node',
+0|telegram-web-backend  | 2026-08-09T01:53:09:     '/opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/compiled/20.20.2/linux/x64/better_sqlite3.node',
+0|telegram-web-backend  | 2026-08-09T01:53:09:     '/opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/addon-build/release/install-root/better_sqlite3.node',
+0|telegram-web-backend  | 2026-08-09T01:53:09:     '/opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/addon-build/debug/install-root/better_sqlite3.node',
+0|telegram-web-backend  | 2026-08-09T01:53:09:     '/opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/addon-build/default/install-root/better_sqlite3.node',
+0|telegram-web-backend  | 2026-08-09T01:53:09:     '/opt/telegram-web/backend/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/lib/binding/node-v115-linux-x64/better_sqlite3.node'
+0|telegram-web-backend  | 2026-08-09T01:53:09:   ]
+0|telegram-web-backend  | 2026-08-09T01:53:09: }
+^C
+root@VM-0995WZUY /opt/telegram-web/backend $ ls -la /opt/telegram-web/backend/dist/index.js
+-rw-r--r-- 1 root root 1524 Aug  9 01:50 /opt/telegram-web/backend/dist/index.js
+root@VM-0995WZUY /opt/telegram-web/backend $
