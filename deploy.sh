@@ -84,8 +84,8 @@ cp -r "$SCRIPT_DIR/frontend" "$DEPLOY_DIR/"
 if [ ! -f "$DEPLOY_DIR/backend/.env" ]; then
     cat > "$DEPLOY_DIR/backend/.env" << ENVEOF
 # Telegram API - 从 https://my.telegram.org/apps 获取
-TELEGRAM_API_ID=
-TELEGRAM_API_HASH=
+TELEGRAM_API_ID=33960207
+TELEGRAM_API_HASH=b4a1d5e99cce9e6f317596dfc25aa38a
 
 # 服务端口
 PORT=${BACKEND_PORT}
