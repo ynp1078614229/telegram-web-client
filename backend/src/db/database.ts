@@ -100,4 +100,21 @@ db.exec(`
 
 `);
 
+// Migration: add missing and new columns
+const _cols = db.prepare("PRAGMA table_info(auto_replies)").all() as any[];
+const _colNames = _cols.map((c: any) => c.name);
+const _addCol = (name: string, def: string) => {
+  if (!_colNames.includes(name)) {
+    db.exec(`ALTER TABLE auto_replies ADD COLUMN ${name} ${def}`);
+    console.log(`[DB] Added column: ${name}`);
+  }
+};
+_addCol("delay_min", "INTEGER DEFAULT 0");
+_addCol("delay_max", "INTEGER DEFAULT 0");
+_addCol("cooldown", "INTEGER DEFAULT 0");
+_addCol("scope", "TEXT DEFAULT 'private'");
+_addCol("priority", "INTEGER DEFAULT 0");
+_addCol("match_mode", "TEXT DEFAULT 'any'");
+db.exec(`CREATE TABLE IF NOT EXISTS auto_reply_cooldowns (rule_id INTEGER NOT NULL, user_id INTEGER NOT NULL, last_replied_at INTEGER NOT NULL, PRIMARY KEY (rule_id, user_id))`);
+
 export default db;

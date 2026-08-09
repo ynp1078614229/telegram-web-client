@@ -12,6 +12,8 @@ interface AutoReplyRule {
   delay_max: number;
   cooldown: number;
   scope: string;
+  priority: number;
+  match_mode: string;
   created_at: number;
   updated_at: number;
 }
@@ -44,6 +46,8 @@ export default function BotSettingsPage() {
   const [delayMax, setDelayMax] = useState(0);
   const [cooldown, setCooldown] = useState(0);
   const [scope, setScope] = useState('private');
+  const [priority, setPriority] = useState(0);
+  const [matchMode, setMatchMode] = useState('any');
   
   // Test state
   const [testText, setTestText] = useState('');
@@ -91,10 +95,11 @@ export default function BotSettingsPage() {
     }
     
     try {
+      const payload = { keyword, match_type: matchType, reply_text: replyText, is_active: isActive, delay_min: delayMin, delay_max: delayMax, cooldown, scope, priority, match_mode: matchMode };
       if (editingRule) {
-        await api.bot.updateRule(editingRule.id, { keyword, match_type: matchType, reply_text: replyText, is_active: isActive, delay_min: delayMin, delay_max: delayMax, cooldown, scope });
+        await api.bot.updateRule(editingRule.id, payload);
       } else {
-        await api.bot.createRule(keyword, matchType, replyText, isActive, delayMin, delayMax, cooldown, scope);
+        await api.bot.createRule(keyword, matchType, replyText, isActive, delayMin, delayMax, cooldown, scope, priority, matchMode);
       }
       resetForm();
       loadRules();
@@ -113,6 +118,8 @@ export default function BotSettingsPage() {
     setDelayMax(rule.delay_max || 0);
     setCooldown(rule.cooldown || 0);
     setScope(rule.scope || 'private');
+    setPriority(rule.priority || 0);
+    setMatchMode(rule.match_mode || 'any');
     setShowForm(true);
   };
 
@@ -150,6 +157,8 @@ export default function BotSettingsPage() {
     setDelayMax(0);
     setCooldown(0);
     setScope('private');
+    setPriority(0);
+    setMatchMode('any');
   };
 
   const matchTypeLabels: Record<string, string> = {
@@ -157,6 +166,7 @@ export default function BotSettingsPage() {
     exact: '完全匹配',
     starts: '开头匹配',
     ends: '结尾匹配',
+    regex: '正则表达式',
   };
 
   const scopeLabels: Record<string, string> = {
@@ -167,6 +177,10 @@ export default function BotSettingsPage() {
 
   const formatTime = (ts: number) => {
     return new Date(ts * 1000).toLocaleString('zh-CN');
+  };
+
+  const getKeywords = (kw: string) => {
+    return kw.split(/[,，]/).map(k => k.trim()).filter(Boolean);
   };
 
   return (
@@ -255,10 +269,11 @@ export default function BotSettingsPage() {
                         value={keyword}
                         onChange={(e) => setKeyword(e.target.value)}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                        placeholder="输入触发关键词（相同关键词可建多条规则随机回复）"
+                        placeholder="多个关键词用逗号分隔，如：你好,hi,hello"
                       />
+                      <p className="text-xs text-gray-400 mt-1">多个关键词用逗号（,）分隔</p>
                     </div>
-                    
+
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">匹配方式</label>
@@ -267,26 +282,54 @@ export default function BotSettingsPage() {
                           onChange={(e) => setMatchType(e.target.value)}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50"
                         >
-                          <option value="contains">包含关键词</option>
+                          <option value="contains">包含</option>
                           <option value="exact">完全匹配</option>
                           <option value="starts">开头匹配</option>
                           <option value="ends">结尾匹配</option>
+                          <option value="regex">正则表达式</option>
                         </select>
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">生效范围</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">多词关系</label>
                         <select
-                          value={scope}
-                          onChange={(e) => setScope(e.target.value)}
+                          value={matchMode}
+                          onChange={(e) => setMatchMode(e.target.value)}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50"
                         >
-                          <option value="private">仅私聊</option>
-                          <option value="group">仅群组</option>
-                          <option value="both">私聊+群组</option>
+                          <option value="any">任一匹配 (OR)</option>
+                          <option value="all">全部匹配 (AND)</option>
                         </select>
                       </div>
                     </div>
-                    
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">作用范围</label>
+                      <select
+                        value={scope}
+                        onChange={(e) => setScope(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                      >
+                        <option value="private">仅私聊</option>
+                        <option value="group">仅群组</option>
+                        <option value="both">全部</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        优先级 <span className="text-gray-400 font-normal">（数字越大优先级越高）</span>
+                      </label>
+                      <input
+                        type="number"
+                        value={priority}
+                        onChange={(e) => setPriority(Number(e.target.value))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                        min={0}
+                        placeholder="0"
+                      />
+                      <p className="text-xs text-gray-400 mt-1">多条规则同时匹配时，优先触发优先级高的规则</p>
+                    </div>
+
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">回复内容</label>
                       <textarea
@@ -294,10 +337,19 @@ export default function BotSettingsPage() {
                         onChange={(e) => setReplyText(e.target.value)}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50"
                         rows={3}
-                        placeholder="输入自动回复的文本内容"
+                        placeholder="支持模板变量：{name} {keyword} {time} {date} {weekday} {input} {random:选项1|选项2}"
                       />
+                      <div className="mt-2 p-2 bg-gray-50 rounded text-xs text-gray-500 space-y-0.5">
+                        <p><code className="text-blue-600">{'{name}'}</code> 发送者昵称</p>
+                        <p><code className="text-blue-600">{'{keyword}'}</code> 匹配到的关键词</p>
+                        <p><code className="text-blue-600">{'{time}'}</code> 当前时间（如 14:30）</p>
+                        <p><code className="text-blue-600">{'{date}'}</code> 当前日期</p>
+                        <p><code className="text-blue-600">{'{weekday}'}</code> 星期几</p>
+                        <p><code className="text-blue-600">{'{input}'}</code> 用户发送的完整消息</p>
+                        <p><code className="text-blue-600">{'{random:A|B|C}'}</code> 随机选一个</p>
+                      </div>
                     </div>
-                    
+
                     <div className="grid grid-cols-3 gap-3">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">最小延迟(秒)</label>
@@ -374,71 +426,88 @@ export default function BotSettingsPage() {
               </div>
             ) : (
               <div className="space-y-3">
-                {rules.map((rule) => (
-                  <div
-                    key={rule.id}
-                    className={`bg-white rounded-lg p-4 border ${rule.is_active ? 'border-gray-200' : 'border-gray-100 opacity-60'}`}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2 flex-wrap">
-                          <span className="px-2 py-0.5 bg-blue-50 text-blue-700 text-xs rounded-full">
-                            {matchTypeLabels[rule.match_type]}
-                          </span>
-                          <span className="px-2 py-0.5 bg-purple-50 text-purple-700 text-xs rounded-full">
-                            {scopeLabels[rule.scope] || '私聊'}
-                          </span>
-                          <span className={`px-2 py-0.5 text-xs rounded-full ${
-                            rule.is_active ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'
-                          }`}>
-                            {rule.is_active ? '已启用' : '已禁用'}
-                          </span>
-                          <span className="text-xs text-gray-400">触发 {rule.match_count} 次</span>
-                          {(rule.delay_min > 0 || rule.delay_max > 0) && (
-                            <span className="px-2 py-0.5 bg-yellow-50 text-yellow-700 text-xs rounded-full">
-                              延迟 {rule.delay_min}-{rule.delay_max}s
+                {rules.map((rule) => {
+                  const kws = getKeywords(rule.keyword);
+                  return (
+                    <div
+                      key={rule.id}
+                      className={`bg-white rounded-lg p-4 border ${rule.is_active ? 'border-gray-200' : 'border-gray-100 opacity-60'}`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2 flex-wrap">
+                            <span className="px-2 py-0.5 bg-blue-50 text-blue-700 text-xs rounded-full">
+                              {matchTypeLabels[rule.match_type]}
                             </span>
-                          )}
-                          {rule.cooldown > 0 && (
-                            <span className="px-2 py-0.5 bg-orange-50 text-orange-700 text-xs rounded-full">
-                              冷却 {rule.cooldown}s
+                            <span className="px-2 py-0.5 bg-purple-50 text-purple-700 text-xs rounded-full">
+                              {scopeLabels[rule.scope] || '私聊'}
                             </span>
-                          )}
+                            <span className={`px-2 py-0.5 text-xs rounded-full ${
+                              rule.is_active ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'
+                            }`}>
+                              {rule.is_active ? '已启用' : '已禁用'}
+                            </span>
+                            {(rule.priority || 0) > 0 && (
+                              <span className="px-2 py-0.5 bg-red-50 text-red-700 text-xs rounded-full">
+                                优先级 {rule.priority}
+                              </span>
+                            )}
+                            {kws.length > 1 && (
+                              <span className="px-2 py-0.5 bg-amber-50 text-amber-700 text-xs rounded-full">
+                                {rule.match_mode === 'all' ? '全部匹配(AND)' : '任一匹配(OR)'} · {kws.length}个词
+                              </span>
+                            )}
+                            <span className="text-xs text-gray-400">触发 {rule.match_count} 次</span>
+                            {(rule.delay_min > 0 || rule.delay_max > 0) && (
+                              <span className="px-2 py-0.5 bg-yellow-50 text-yellow-700 text-xs rounded-full">
+                                延迟 {rule.delay_min}-{rule.delay_max}s
+                              </span>
+                            )}
+                            {rule.cooldown > 0 && (
+                              <span className="px-2 py-0.5 bg-orange-50 text-orange-700 text-xs rounded-full">
+                                冷却 {rule.cooldown}s
+                              </span>
+                            )}
+                          </div>
+                          <div className="mb-1">
+                            <span className="text-sm text-gray-500">关键词：</span>
+                            {kws.map((kw, i) => (
+                              <span key={i} className="inline-block mr-1 mb-1 px-2 py-0.5 bg-gray-100 text-gray-800 text-sm rounded">
+                                {kw}
+                              </span>
+                            ))}
+                          </div>
+                          <div>
+                            <span className="text-sm text-gray-500">回复：</span>
+                            <span className="text-sm text-gray-700">{rule.reply_text}</span>
+                          </div>
                         </div>
-                        <div className="mb-1">
-                          <span className="text-sm text-gray-500">关键词：</span>
-                          <span className="text-sm font-medium text-gray-800">{rule.keyword}</span>
+                        
+                        <div className="flex items-center gap-2 ml-4">
+                          <button
+                            className="text-sm text-gray-500 hover:text-blue-500"
+                            onClick={() => handleToggle(rule)}
+                            title={rule.is_active ? '禁用' : '启用'}
+                          >
+                            {rule.is_active ? '⏸' : '▶️'}
+                          </button>
+                          <button
+                            className="text-sm text-gray-500 hover:text-blue-600"
+                            onClick={() => handleEdit(rule)}
+                          >
+                            ✏️
+                          </button>
+                          <button
+                            className="text-sm text-gray-500 hover:text-red-600"
+                            onClick={() => handleDelete(rule.id)}
+                          >
+                            🗑️
+                          </button>
                         </div>
-                        <div>
-                          <span className="text-sm text-gray-500">回复：</span>
-                          <span className="text-sm text-gray-700">{rule.reply_text}</span>
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center gap-2 ml-4">
-                        <button
-                          className="text-sm text-gray-500 hover:text-blue-500"
-                          onClick={() => handleToggle(rule)}
-                          title={rule.is_active ? '禁用' : '启用'}
-                        >
-                          {rule.is_active ? '⏸' : '▶️'}
-                        </button>
-                        <button
-                          className="text-sm text-gray-500 hover:text-blue-600"
-                          onClick={() => handleEdit(rule)}
-                        >
-                          ✏️
-                        </button>
-                        <button
-                          className="text-sm text-gray-500 hover:text-red-600"
-                          onClick={() => handleDelete(rule.id)}
-                        >
-                          🗑️
-                        </button>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -524,14 +593,18 @@ export default function BotSettingsPage() {
                   <div className="space-y-2">
                     {testResults.map((r, i) => (
                       <div key={i} className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                        <div className="text-sm">
-                          <span className="text-gray-500">规则 #{r.id}：</span>
+                        <div className="text-sm flex items-center gap-2">
+                          <span className="text-gray-500">规则 #{r.id}</span>
+                          {(r.priority || 0) > 0 && (
+                            <span className="px-1.5 py-0.5 bg-red-50 text-red-600 text-xs rounded">优先级 {r.priority}</span>
+                          )}
                           <span className="font-medium">{r.keyword}</span>
                           <span className="text-gray-400 mx-2">→</span>
                           <span className="text-green-700">{r.reply_text}</span>
                         </div>
                         <div className="text-xs text-gray-400 mt-1">
                           {scopeLabels[r.scope] || '私聊'} | {matchTypeLabels[r.match_type]}
+                          {r.match_mode === 'all' ? ' | 全部匹配(AND)' : ' | 任一匹配(OR)'}
                           {(r.delay_min > 0 || r.delay_max > 0) && ` | 延迟${r.delay_min}-${r.delay_max}s`}
                           {r.cooldown > 0 && ` | 冷却${r.cooldown}s`}
                         </div>

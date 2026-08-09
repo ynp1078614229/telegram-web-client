@@ -899,7 +899,7 @@ class TelegramService {
     if (botRow && Number(botRow.value) !== 1) return;
     
     try {
-      const rules = db.prepare('SELECT * FROM auto_replies WHERE is_active = 1').all() as any[];
+      const rules = db.prepare('SELECT * FROM auto_replies WHERE is_active = 1 ORDER BY priority DESC').all() as any[];
       const now = Math.floor(Date.now() / 1000);
       const matched: any[] = [];
       
@@ -909,18 +909,7 @@ class TelegramService {
         if (chatType === 'private' && !isBoth && !scopes.includes('private')) continue;
         if ((chatType === 'group' || chatType === 'supergroup' || chatType === 'channel') && !isBoth && !scopes.includes('group')) continue;
         
-        let isMatch = false;
-        const keyword = rule.keyword.toLowerCase();
-        const inputText = text.toLowerCase();
-        
-        switch (rule.match_type) {
-          case 'exact': isMatch = inputText === keyword; break;
-          case 'starts': isMatch = inputText.startsWith(keyword); break;
-          case 'ends': isMatch = inputText.endsWith(keyword); break;
-          case 'contains': default: isMatch = inputText.includes(keyword); break;
-        }
-        
-        if (isMatch) {
+        if (this.matchRule(rule, text)) {
           if (rule.cooldown > 0) {
             const cdRow = db.prepare('SELECT last_replied_at FROM auto_reply_cooldowns WHERE rule_id = ? AND user_id = ?').get(rule.id, senderId) as any;
             if (cdRow && (now - cdRow.last_replied_at) < rule.cooldown) {
@@ -934,8 +923,20 @@ class TelegramService {
       
       if (matched.length === 0) return;
       
-      const rule = matched[Math.floor(Math.random() * matched.length)];
-      console.log(`[AutoReply] Matched rule ${rule.id}: "${rule.keyword}" -> ${chatType === 'private' ? 'reply in chat' : 'DM user'} ${senderId}`);
+      // 按优先级排序，取最高优先级的规则，同优先级随机选一条
+      matched.sort((a, b) => (b.priority || 0) - (a.priority || 0));
+      const maxPriority = matched[0].priority || 0;
+      const topRules = matched.filter(r => (r.priority || 0) === maxPriority);
+      const rule = topRules[Math.floor(Math.random() * topRules.length)];
+      
+      // 模板变量替换
+      const replyText = this.processTemplate(rule.reply_text, {
+        name: senderName,
+        keyword: rule.keyword,
+        input: text,
+      });
+      
+      console.log(`[AutoReply] Matched rule ${rule.id} (priority=${rule.priority}): "${rule.keyword}" -> ${chatType === 'private' ? 'reply in chat' : 'DM user'} ${senderId}`);
       
       const dMin = rule.delay_min || 0;
       const dMax = rule.delay_max || 0;
@@ -949,9 +950,9 @@ class TelegramService {
       const doReply = async () => {
         try {
           if (chatType === 'private') {
-            await this.client!.sendMessage(chatId, { message: rule.reply_text });
+            await this.client!.sendMessage(chatId, { message: replyText });
           } else {
-            await this.client!.sendMessage(senderId, { message: rule.reply_text });
+            await this.client!.sendMessage(senderId, { message: replyText });
             console.log(`[AutoReply] Sent DM to user ${senderId} (triggered from group ${chatId})`);
           }
           
@@ -964,7 +965,7 @@ class TelegramService {
           db.prepare(`
             INSERT INTO auto_reply_logs (rule_id, from_user_id, from_user_name, keyword, reply_text)
             VALUES (?, ?, ?, ?, ?)
-          `).run(rule.id, senderId, senderName, rule.keyword, rule.reply_text);
+          `).run(rule.id, senderId, senderName, rule.keyword, replyText);
         } catch (sendErr) {
           console.error('[AutoReply] Send error:', sendErr);
         }
@@ -979,6 +980,57 @@ class TelegramService {
     } catch (err) {
       console.error('[AutoReply] Error:', err);
     }
+  }
+
+  // 多关键词匹配（支持 any/all 模式）
+  private matchRule(rule: any, inputText: string): boolean {
+    const keywords = rule.keyword.split(/[,，]/).map((k: string) => k.trim().toLowerCase()).filter(Boolean);
+    const text = inputText.toLowerCase();
+    if (keywords.length === 0) return false;
+    
+    const matchMode = rule.match_mode || 'any';
+    
+    if (matchMode === 'all') {
+      return keywords.every((kw: string) => this.matchSingle(rule.match_type, text, kw));
+    } else {
+      return keywords.some((kw: string) => this.matchSingle(rule.match_type, text, kw));
+    }
+  }
+
+  private matchSingle(matchType: string, text: string, keyword: string): boolean {
+    switch (matchType) {
+      case 'exact': return text === keyword;
+      case 'starts': return text.startsWith(keyword);
+      case 'ends': return text.endsWith(keyword);
+      case 'regex':
+        try { return new RegExp(keyword).test(text); } catch { return false; }
+      case 'contains':
+      default: return text.includes(keyword);
+    }
+  }
+
+  // 模板变量替换
+  private processTemplate(template: string, vars: { name: string; keyword: string; input: string }): string {
+    const now = new Date();
+    const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
+    
+    let result = template;
+    
+    // {random:选项1|选项2|选项3}
+    result = result.replace(/\{random:([^}]+)\}/g, (_, options) => {
+      const opts = options.split('|').map((o: string) => o.trim());
+      return opts[Math.floor(Math.random() * opts.length)];
+    });
+    
+    // 基础变量
+    result = result.replace(/\{name\}/g, vars.name || '朋友');
+    result = result.replace(/\{keyword\}/g, vars.keyword);
+    result = result.replace(/\{input\}/g, vars.input);
+    result = result.replace(/\{time\}/g, now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }));
+    result = result.replace(/\{date\}/g, now.toLocaleDateString('zh-CN'));
+    result = result.replace(/\{weekday\}/g, '星期' + weekdays[now.getDay()]);
+    
+    return result;
   }
 }
 

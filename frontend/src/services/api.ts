@@ -46,7 +46,7 @@ export const api = {
   contacts: { getAll: () => request<{ success: boolean; contacts: any[] }>('/contacts') },
   bot: {
     getRules: () => request<{ success: boolean; rules: any[] }>('/bot/rules'),
-    createRule: (keyword: string, match_type: string, reply_text: string, is_active?: boolean, delay_min?: number, delay_max?: number, cooldown?: number, scope?: string) => request<{ success: boolean; rule: any }>('/bot/rules', { method: 'POST', body: JSON.stringify({ keyword, match_type, reply_text, is_active, delay_min, delay_max, cooldown, scope }) }),
+    createRule: (keyword: string, match_type: string, reply_text: string, is_active?: boolean, delay_min?: number, delay_max?: number, cooldown?: number, scope?: string, priority?: number, match_mode?: string) => request<{ success: boolean; rule: any }>('/bot/rules', { method: 'POST', body: JSON.stringify({ keyword, match_type, reply_text, is_active, delay_min, delay_max, cooldown, scope, priority, match_mode }) }),
     updateRule: (id: number, data: { keyword?: string; match_type?: string; reply_text?: string; is_active?: boolean; delay_min?: number; delay_max?: number; cooldown?: number; scope?: string }) => request<{ success: boolean; rule: any }>(`/bot/rules/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     deleteRule: (id: number) => request<{ success: boolean }>(`/bot/rules/${id}`, { method: 'DELETE' }),
     getLogs: () => request<{ success: boolean; logs: any[] }>('/bot/logs'),
