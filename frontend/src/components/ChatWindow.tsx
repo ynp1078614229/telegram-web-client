@@ -216,9 +216,9 @@ export default function ChatWindow({ chat, messages, loading, loadError, onRetry
 
       {replyTo && !editingMessage && (
         <div className="bg-white border-t border-gray-200 px-4 py-2 flex items-center gap-3">
-          <div className="flex-1 border-l-2 border-primary pl-3 min-w-0">
+          <div className="flex-1 border-l-2 border-primary pl-3 min-w-0 overflow-hidden">
             <p className="text-xs text-primary font-medium">回复 {replyTo.senderName || 'User'}</p>
-            <p className="text-xs text-gray-500 truncate">{replyTo.text}</p>
+            <p className="text-xs text-gray-500 truncate">{truncateText(replyTo.text, 100)}</p>
           </div>
           <button onClick={() => setReplyTo(null)} className="text-gray-400 hover:text-gray-600 shrink-0">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -294,6 +294,12 @@ interface MessageBubbleProps {
   onCopy: () => void;
 }
 
+// 截断引用文本，防止超长内容撑宽气泡
+const truncateText = (text: string, maxLen: number) => {
+  if (!text) return "";
+  return text.length > maxLen ? text.slice(0, maxLen) + "..." : text;
+};
+
 function MessageBubble({ message, chatType, currentUserId, onReply, onEdit, onDelete, onCopy }: MessageBubbleProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [menuPos, setMenuPos] = useState({ x: 0, y: 0 });
@@ -320,14 +326,14 @@ function MessageBubble({ message, chatType, currentUserId, onReply, onEdit, onDe
       onContextMenu={handleContextMenu}
     >
       <div
-        className={`relative max-w-[65%] rounded-xl px-3 py-1.5 shadow-sm ${
+        className={`relative w-fit min-w-0 max-w-[65%] rounded-xl px-3 py-1.5 shadow-sm ${
           isOut ? 'bg-tg-bubble-out text-gray-900' : 'bg-tg-bubble-in text-gray-900'
         }`}
       >
         {message.replyToText && (
-          <div className="border-l-2 border-primary/50 pl-2 mb-1 bg-black/5 rounded-r-md py-1 px-2 max-h-16 overflow-hidden">
-            <p className="text-xs text-primary font-medium truncate">{message.replyToSender || 'User'}</p>
-            <p className="text-xs text-gray-500 truncate line-clamp-2">{message.replyToText}</p>
+          <div className="border-l-2 border-primary/50 pl-2 mb-1 bg-black/5 rounded-r-md py-1 px-2 max-h-16 w-full overflow-hidden">
+            <p className="text-xs text-primary font-medium truncate max-w-full">{truncateText(message.replyToSender || 'User', 30)}</p>
+            <p className="text-xs text-gray-500 truncate">{truncateText(message.replyToText, 100)}</p>
           </div>
         )}
 
@@ -371,11 +377,11 @@ function MessageBubble({ message, chatType, currentUserId, onReply, onEdit, onDe
         )}
 
         {message.type === 'text' && message.text && (
-          <p className="text-sm whitespace-pre-wrap break-words">{message.text}</p>
+          <p className="text-sm whitespace-pre-wrap break-all">{message.text}</p>
         )}
 
         {message.type === 'photo' && message.text && message.text !== '📷 Photo' && (
-          <p className="text-sm whitespace-pre-wrap break-words">{message.text}</p>
+          <p className="text-sm whitespace-pre-wrap break-all">{message.text}</p>
         )}
 
         <div className="flex items-center gap-1 justify-end mt-0.5">
