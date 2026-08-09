@@ -113,7 +113,7 @@ export default function ChatPage({ user, onLogout }: ChatPageProps) {
       default: return (
         <div className="flex flex-1 h-full overflow-hidden">
           {/* 会话列表 - 手机进入聊天时隐藏，桌面端始终显示 */}
-          <div className={showMobileChat ? "hidden md:flex md:w-[360px] md:shrink-0" : "flex w-full md:w-[360px] md:shrink-0"}>
+          <div className={showMobileChat ? "hidden sidebar-desktop" : "flex w-full sidebar-desktop"}>
             <Sidebar chats={chats} selectedChatId={selectedChatId} loading={loadingChats} onSelectChat={handleSelectChat} onTogglePin={handleTogglePin} />
           </div>
           {/* 聊天窗口 - 手机端选中聊天时显示，桌面端始终显示 */}
