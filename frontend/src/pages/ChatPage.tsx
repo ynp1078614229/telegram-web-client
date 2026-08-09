@@ -112,7 +112,7 @@ export default function ChatPage({ user, onLogout }: ChatPageProps) {
       case 'bot': return <BotSettingsPage />;
       default: return (
         <div className="flex flex-1 h-full overflow-hidden">
-          <div className={showMobileChat ? 'hidden md:flex' : 'flex'}>
+          <div className={showMobileChat ? 'hidden md:flex' : 'flex w-full md:w-auto'}>
             <Sidebar chats={chats} selectedChatId={selectedChatId} loading={loadingChats} onSelectChat={handleSelectChat} onTogglePin={handleTogglePin} />
           </div>
           <div className={showMobileChat ? "flex flex-1 min-w-0" : "hidden md:flex md:flex-1 md:min-w-0"}>
@@ -130,9 +130,8 @@ export default function ChatPage({ user, onLogout }: ChatPageProps) {
 
   return (
     <div className="h-[100dvh] flex flex-col bg-tg-bg">
-            {/* 桌面端顶部 Tab 栏 */}
-      {showTabBar && (
-        <div className="hidden md:flex bg-white border-b border-gray-200 items-center px-4 h-14 shrink-0">
+      {/* 桌面端顶部 Tab 栏 - 始终显示 */}
+      <div className="hidden md:flex bg-white border-b border-gray-200 items-center px-4 h-14 shrink-0">
           <div className="flex items-center gap-1">
             {tabs.map((tab) => (
               <button key={tab.key} onClick={() => { setActiveTab(tab.key); setShowMobileChat(false); }}
@@ -142,7 +141,6 @@ export default function ChatPage({ user, onLogout }: ChatPageProps) {
             ))}
           </div>
         </div>
-      )}
       {/* 主内容区域 */}
       <div className="flex-1 flex overflow-hidden">
         {renderContent()}
