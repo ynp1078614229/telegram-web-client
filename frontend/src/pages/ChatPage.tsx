@@ -28,6 +28,15 @@ export default function ChatPage({ user, onLogout }: ChatPageProps) {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [showMobileChat, setShowMobileChat] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(() => window.matchMedia('(min-width: 640px)').matches);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 640px)');
+    const handler = (e: MediaQueryListEvent | MediaQueryList) => setIsDesktop(e.matches);
+    handler(mq);
+    mq.addEventListener('change', handler as (e: MediaQueryListEvent) => void);
+    return () => mq.removeEventListener('change', handler as (e: MediaQueryListEvent) => void);
+  }, []);
   const navigate = useNavigate();
 
   useEffect(() => { loadChats(); }, []);
@@ -111,13 +120,13 @@ export default function ChatPage({ user, onLogout }: ChatPageProps) {
       case 'settings': return <SettingsPage user={user} onLogout={onLogout} />;
       case 'bot': return <BotSettingsPage />;
       default: return (
-        <div className="flex flex-1 h-full overflow-hidden">
+        <div className="flex flex-1 min-h-0 overflow-hidden h-full">
           {/* 会话列表 - 手机进入聊天时隐藏，桌面端始终显示 */}
-          <div className={showMobileChat ? "hidden md:flex w-[360px] shrink-0" : "flex w-full md:w-[360px] md:shrink-0"}>
+          <div className="w-[360px] shrink-0 h-full" style={{ display: (showMobileChat && !isDesktop) ? 'none' : 'flex' }}>
             <Sidebar chats={chats} selectedChatId={selectedChatId} loading={loadingChats} onSelectChat={handleSelectChat} onTogglePin={handleTogglePin} />
           </div>
           {/* 聊天窗口 - 手机端选中聊天时显示，桌面端始终显示 */}
-          <div className={showMobileChat ? "flex flex-1 min-w-0" : "hidden md:flex md:flex-1 md:min-w-0"}>
+          <div className="flex-1 min-w-0 h-full" style={{ display: (!showMobileChat && !isDesktop) ? 'none' : 'flex' }}>
             <ErrorBoundary>
               <ChatWindow chat={selectedChat || null} messages={messages} loading={loadingMessages} loadError={loadError} onRetry={() => { setLoadError(false); loadMessages(selectedChatId!); }} onSendMessage={handleSendMessage} onDeleteMessage={handleDeleteMessage} onEditMessage={handleEditMessage} onSendMedia={handleSendMedia} onLoadMore={handleLoadMore} user={user} onBack={handleBack} />
             </ErrorBoundary>
@@ -133,7 +142,7 @@ export default function ChatPage({ user, onLogout }: ChatPageProps) {
   return (
     <div className="h-[100dvh] flex flex-col bg-tg-bg">
       {/* 桌面端顶部 Tab 栏 - 始终显示 */}
-      <div className="hidden md:flex bg-white border-b border-gray-200 items-center px-4 h-14 shrink-0">
+      <div className="hidden sm:flex bg-white border-b border-gray-200 items-center px-4 h-14 shrink-0">
           <div className="flex items-center gap-1">
             {tabs.map((tab) => (
               <button key={tab.key} onClick={() => { setActiveTab(tab.key); setShowMobileChat(false); }}
@@ -151,7 +160,7 @@ export default function ChatPage({ user, onLogout }: ChatPageProps) {
       {/* 手机端底部 Tab 栏 - 底部固定 */}
       {showTabBar && (
         <div
-          className="md:hidden bg-white border-t border-gray-200 flex items-center justify-around shrink-0"
+          className="sm:hidden bg-white border-t border-gray-200 flex items-center justify-around shrink-0"
           style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
         >
           {tabs.map((tab) => (
