@@ -26,6 +26,7 @@ export default function ChatPage({ user, onLogout }: ChatPageProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loadingChats, setLoadingChats] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [showMobileChat, setShowMobileChat] = useState(false);
   const navigate = useNavigate();
 
@@ -83,8 +84,8 @@ export default function ChatPage({ user, onLogout }: ChatPageProps) {
   }, [selectedChatId]);
 
   const loadChats = async () => { setLoadingChats(true); try { const res = await api.chats.getAll(); setChats(res.chats); } catch (err) { console.error('Failed to load chats:', err); } setLoadingChats(false); };
-  const loadMessages = async (chatId: number, offset = 0) => { setLoadingMessages(true); try { const res = await api.chats.getMessages(chatId, offset); if (offset === 0) { setMessages(res.messages); } else { setMessages((prev) => [...res.messages, ...prev]); } api.chats.markRead(chatId).catch(() => {}); } catch (err) { console.error('Failed to load messages:', err); } setLoadingMessages(false); };
-  const handleSelectChat = (chatId: number) => { setSelectedChatId(chatId); setMessages([]); loadMessages(chatId); setShowMobileChat(true); setChats((prev) => prev.map((c) => (c.id === chatId ? { ...c, unreadCount: 0, isRead: true } : c))); };
+  const loadMessages = async (chatId: number, offset = 0) => { setLoadingMessages(true); setLoadError(false); try { const res = await api.chats.getMessages(chatId, offset); if (offset === 0) { setMessages(res.messages || []); } else { setMessages((prev) => [...(res.messages || []), ...prev]); } api.chats.markRead(chatId).catch(() => {}); } catch (err) { console.error('Failed to load messages:', err); setLoadError(true); } setLoadingMessages(false); };
+  const handleSelectChat = (chatId: number) => { setSelectedChatId(chatId); setMessages([]); setLoadError(false); loadMessages(chatId); setShowMobileChat(true); setChats((prev) => prev.map((c) => (c.id === chatId ? { ...c, unreadCount: 0, isRead: true } : c))); };
   const handleSendMessage = async (text: string, replyToMsgId?: number) => { if (!selectedChatId) return; try { const res = await api.chats.sendMessage(selectedChatId, text, replyToMsgId); if (res.message) { setMessages((prev) => [...prev, res.message]); setChats((prev) => prev.map((c) => c.id === selectedChatId ? { ...c, lastMessage: text, lastMessageTime: Date.now() } : c)); } } catch (err) { console.error('Failed to send message:', err); } };
   const handleDeleteMessage = async (messageId: number) => { if (!selectedChatId) return; try { await api.chats.deleteMessage(selectedChatId, messageId); setMessages((prev) => prev.filter((m) => m.id !== messageId)); } catch (err) { console.error('Failed to delete message:', err); } };
   const handleEditMessage = async (messageId: number, newText: string) => { if (!selectedChatId) return; try { const res = await api.chats.editMessage(selectedChatId, messageId, newText); if (res.message) { setMessages((prev) => prev.map((m) => m.id === messageId ? res.message : m)); } } catch (err) { console.error('Failed to edit message:', err); } };
@@ -116,7 +117,7 @@ export default function ChatPage({ user, onLogout }: ChatPageProps) {
           </div>
           <div className={showMobileChat ? "flex flex-1 min-w-0" : "hidden md:flex md:flex-1 md:min-w-0"}>
             <ErrorBoundary>
-              <ChatWindow chat={selectedChat || null} messages={messages} loading={loadingMessages} onSendMessage={handleSendMessage} onDeleteMessage={handleDeleteMessage} onEditMessage={handleEditMessage} onSendMedia={handleSendMedia} onLoadMore={handleLoadMore} user={user} onBack={handleBack} />
+              <ChatWindow chat={selectedChat || null} messages={messages} loading={loadingMessages} loadError={loadError} onRetry={() => { setLoadError(false); loadMessages(selectedChatId!); }} onSendMessage={handleSendMessage} onDeleteMessage={handleDeleteMessage} onEditMessage={handleEditMessage} onSendMedia={handleSendMedia} onLoadMore={handleLoadMore} user={user} onBack={handleBack} />
             </ErrorBoundary>
           </div>
         </div>
@@ -129,12 +130,25 @@ export default function ChatPage({ user, onLogout }: ChatPageProps) {
 
   return (
     <div className="h-[100dvh] flex flex-col bg-tg-bg">
+            {/* 桌面端顶部 Tab 栏 */}
+      {showTabBar && (
+        <div className="hidden md:flex bg-white border-b border-gray-200 items-center px-4 h-14 shrink-0">
+          <div className="flex items-center gap-1">
+            {tabs.map((tab) => (
+              <button key={tab.key} onClick={() => { setActiveTab(tab.key); setShowMobileChat(false); }}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === tab.key ? 'bg-primary/10 text-primary' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'}`}>
+                <tab.icon /><span>{tab.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       {/* 主内容区域 */}
       <div className="flex-1 flex overflow-hidden">
         {renderContent()}
       </div>
 
-      {/* 底部 Tab 栏 - 手机端底部固定，桌面端隐藏 */}
+      {/* 手机端底部 Tab 栏 - 底部固定 */}
       {showTabBar && (
         <div
           className="md:hidden bg-white border-t border-gray-200 flex items-center justify-around shrink-0"

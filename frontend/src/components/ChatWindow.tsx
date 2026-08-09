@@ -8,6 +8,8 @@ interface ChatWindowProps {
   chat: Chat | null;
   messages: Message[];
   loading: boolean;
+  loadError?: boolean;
+  onRetry?: () => void;
   onSendMessage: (text: string, replyToMsgId?: number) => void;
   onDeleteMessage: (messageId: number) => void;
   onEditMessage: (messageId: number, newText: string) => void;
@@ -17,7 +19,7 @@ interface ChatWindowProps {
   onBack?: () => void;
 }
 
-export default function ChatWindow({ chat, messages, loading, onSendMessage, onDeleteMessage, onEditMessage, onSendMedia, onLoadMore, user, onBack }: ChatWindowProps) {
+export default function ChatWindow({ chat, messages, loading, loadError, onRetry, onSendMessage, onDeleteMessage, onEditMessage, onSendMedia, onLoadMore, user, onBack }: ChatWindowProps) {
   const [inputText, setInputText] = useState('');
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [editingMessage, setEditingMessage] = useState<Message | null>(null);
@@ -158,7 +160,25 @@ export default function ChatWindow({ chat, messages, loading, onSendMessage, onD
         className="flex-1 overflow-y-auto chat-bg px-4 py-2"
         onScroll={handleScroll}
       >
-        {loading && messages.length === 0 ? (
+        {loadError ? (
+          <div className="flex flex-col items-center justify-center py-12">
+            <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center mb-3">
+              <svg className="w-6 h-6 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+            </div>
+            <p className="text-gray-500 text-sm mb-3">消息加载失败</p>
+            <button
+              onClick={onRetry}
+              className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white rounded-full text-sm hover:bg-primary-dark transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              重新加载
+            </button>
+          </div>
+        ) : loading && messages.length === 0 ? (
           <div className="space-y-4 py-4">
             {Array.from({ length: 6 }).map((_, i) => (
               <div key={i} className={`flex ${i % 2 === 0 ? 'justify-start' : 'justify-end'}`}>

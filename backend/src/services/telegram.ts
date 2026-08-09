@@ -617,6 +617,7 @@ class TelegramService {
         console.log("[Telegram] Cached", apiMessages.length, "messages for chat", chatId);
       } catch (err) {
         console.error("[Telegram] Error fetching messages:", err);
+        throw err;
       }
     }
 
