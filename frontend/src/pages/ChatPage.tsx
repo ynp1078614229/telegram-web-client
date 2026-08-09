@@ -112,9 +112,11 @@ export default function ChatPage({ user, onLogout }: ChatPageProps) {
       case 'bot': return <BotSettingsPage />;
       default: return (
         <div className="flex flex-1 h-full overflow-hidden">
-          <div className={showMobileChat ? 'hidden md:flex' : 'flex w-full md:w-auto'}>
+          {/* 会话列表 - 手机进入聊天时隐藏，桌面端始终显示 */}
+          <div className={showMobileChat ? "hidden md:flex md:w-[360px] md:shrink-0" : "flex w-full md:w-[360px] md:shrink-0"}>
             <Sidebar chats={chats} selectedChatId={selectedChatId} loading={loadingChats} onSelectChat={handleSelectChat} onTogglePin={handleTogglePin} />
           </div>
+          {/* 聊天窗口 - 手机端选中聊天时显示，桌面端始终显示 */}
           <div className={showMobileChat ? "flex flex-1 min-w-0" : "hidden md:flex md:flex-1 md:min-w-0"}>
             <ErrorBoundary>
               <ChatWindow chat={selectedChat || null} messages={messages} loading={loadingMessages} loadError={loadError} onRetry={() => { setLoadError(false); loadMessages(selectedChatId!); }} onSendMessage={handleSendMessage} onDeleteMessage={handleDeleteMessage} onEditMessage={handleEditMessage} onSendMedia={handleSendMedia} onLoadMore={handleLoadMore} user={user} onBack={handleBack} />
