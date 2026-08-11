@@ -79,17 +79,22 @@ router.post('/qr-login', async (req, res) => {
 // Check QR login status
 router.post('/qr-check', async (req, res) => {
   try {
-    const success = await telegramService.checkQRLogin();
-    if (success) {
+    const result = await telegramService.checkQRLogin();
+    if (result === true) {
       const user = telegramService.getCurrentUser();
       res.json({ success: true, user });
+    } else if (result === 'need_2fa') {
+      res.json({ success: false, needs2FA: true });
+    } else if (result === 'expired') {
+      // Token expired - frontend should regenerate QR
+      res.status(400).json({ success: false, error: 'QR_EXPIRED' });
     } else {
+      // Still waiting for scan (including TIMEOUT errors - just retry)
       res.json({ success: false });
     }
   } catch (err: any) {
-    console.log('[Auth] qr-check error:', err.message);
-    // Return error status so frontend regenerates QR
-    res.status(400).json({ success: false, error: err.message || 'QR expired' });
+    console.log('[Auth] qr-check unexpected error:', err.message);
+    res.json({ success: false });
   }
 });
 

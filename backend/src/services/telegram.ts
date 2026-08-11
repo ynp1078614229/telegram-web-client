@@ -83,6 +83,7 @@ class TelegramService {
   sessionString: string = '';
   io: SocketIOServer | null = null;
   isReady: boolean = false;
+  qrNeeds2fa: boolean = false;
   me: Api.User | null = null;
 
   constructor() {
@@ -184,6 +185,7 @@ class TelegramService {
   }
 
   async getQRCode(): Promise<{ token: Buffer; expires: number }> {
+    this.qrNeeds2fa = false;
     // Disconnect any existing client
     if (this.client) {
       try { await this.client.disconnect(); } catch {}
@@ -217,10 +219,13 @@ class TelegramService {
     throw new Error('Unexpected QR login result');
   }
 
-  async checkQRLogin(): Promise<boolean> {
+  async checkQRLogin(): Promise<boolean | 'expired' | 'need_2fa'> {
     if (!this.client) {
       console.log('[Auth] checkQR: client is null');
       return false;
+    }
+    if (this.qrNeeds2fa) {
+      return 'need_2fa';
     }
     try {
       const result = await this.client.invoke(
@@ -271,8 +276,19 @@ class TelegramService {
       console.log('[Auth] Unexpected QR result type:', (result as any).className);
       return false;
     } catch (err: any) {
-      console.log('[Auth] QR check error:', err.errorMessage || err.message);
-      throw err;
+      const msg = err.errorMessage || err.message || String(err);
+      console.log('[Auth] QR check error:', msg);
+      if (msg.includes('SESSION_PASSWORD_NEEDED')) {
+        console.log('[Auth] Account has 2FA enabled, needs password');
+        this.qrNeeds2fa = true;
+        return 'need_2fa';
+      }
+      if (msg.includes('TOKEN_EXPIRED')) {
+        console.log('[Auth] QR token expired');
+        return 'expired';
+      }
+      console.log('[Auth] Non-fatal error, keeping same QR:', msg);
+      return false;
     }
   }
 

@@ -20,7 +20,7 @@ export const api = {
     verifyCode: (phone: string, code: string, phoneCodeHash: string) => request<{ success: boolean; user?: any; needs2FA?: boolean }>('/auth/verify-code', { method: 'POST', body: JSON.stringify({ phone, code, phoneCodeHash }) }),
     verify2FA: (password: string) => request<{ success: boolean; user: any }>('/auth/verify-2fa', { method: 'POST', body: JSON.stringify({ password }) }),
     qrLogin: () => request<{ success: boolean; token: string; qrUrl: string; expires: number }>('/auth/qr-login', { method: 'POST' }),
-    qrCheck: () => request<{ success: boolean; user?: any; error?: string }>('/auth/qr-check', { method: 'POST', body: JSON.stringify({}) }),
+    qrCheck: () => request<{ success: boolean; user?: any; error?: string; needs2FA?: boolean }>('/auth/qr-check', { method: 'POST', body: JSON.stringify({}) }),
     check: () => request<{ authorized: boolean; user?: any }>('/auth/check'),
     logout: () => request<{ success: boolean }>('/auth/logout', { method: 'POST' }),
   },
