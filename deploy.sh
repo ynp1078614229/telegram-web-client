@@ -1,161 +1,179 @@
 #!/bin/bash
-# ============================================
-# Telegram Web Client - 一键部署脚本
-# ============================================
-# 用法:
-#   curl -sL https://raw.githubusercontent.com/ynp1078614229/telegram-web-client/main/deploy.sh | bash
-#   或:
-#   wget -qO- https://raw.githubusercontent.com/ynp1078614229/telegram-web-client/main/deploy.sh | bash
-#
-# 绑定域名:
-#   curl -sL .../deploy.sh | bash -s -- telegram.example.com
-#
-# 环境要求: Ubuntu 20.04+ / Debian 11+, root 权限
-# ============================================
-
-export DEBIAN_FRONTEND=noninteractive
-export NEEDRESTART_MODE=a
-export NEEDRESTART_SUSPEND=1
 set -e
 
-DOMAIN=${1:-_}
-BACKEND_PORT=3001
-DEPLOY_DIR="/opt/telegram-web"
-REPO_URL="https://github.com/ynp1078614229/telegram-web-client.git"
-NODE_VERSION="20"
+# ============================================================
+# Telegram Web Client - 个人版一键部署脚本
+# 用法: curl -sL https://raw.githubusercontent.com/ynp1078614229/telegram-web-client/main/deploy.sh | bash
+# 支持系统: Ubuntu 18+/Debian 10+/CentOS 7+
+# ============================================================
 
+# 颜色定义
+RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-RED='\033[0;31m'
+BLUE='\033[0;34m'
 NC='\033[0m'
 
-info()  { echo -e "${GREEN}[✓]${NC} $1"; }
-warn()  { echo -e "${YELLOW}[!]${NC} $1"; }
-error() { echo -e "${RED}[✗]${NC} $1"; exit 1; }
+# 配置
+APP_NAME="telegram-web"
+APP_DIR="/opt/telegram-web"
+DOWNLOAD_URL="https://github.com/ynp1078614229/telegram-web-client/releases/download/v4/telegram-web-client.tar.gz"
+BACKEND_PORT=3001
+FRONTEND_PORT=5000
+DOMAIN="${1:-_}"  # 第一个参数为域名，默认为 _ (任意域名)
+
+log() { echo -e "${GREEN}[INFO]${NC} $1"; }
+warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
+error() { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
+
+# 检查 root 权限
+if [ "$EUID" -ne 0 ]; then
+  error "请使用 root 权限运行: sudo bash deploy.sh [your-domain.com]"
+fi
 
 echo ""
-echo "============================================"
-echo "  Telegram Web Client - 一键部署"
-echo "============================================"
+echo -e "${BLUE}============================================${NC}"
+echo -e "${BLUE}  Telegram Web Client - 一键部署脚本${NC}"
+echo -e "${BLUE}============================================${NC}"
+echo -e "域名: ${YELLOW}${DOMAIN}${NC}"
+echo -e "后端端口: ${YELLOW}${BACKEND_PORT}${NC}"
 echo ""
 
-[ "$EUID" -ne 0 ] && error "请使用 root 或 sudo 运行"
+# ============================================================
+# 1. 系统更新 & 基础工具
+# ============================================================
+log "更新系统包..."
+apt-get update -qq
+apt-get install -y -qq curl wget git build-essential software-properties-common sqlite3 > /dev/null 2>&1
 
-# 1. System packages
-info "安装系统依赖..."
-apt-get update
-apt-get install -y build-essential python3 curl git
-
-# 2. Node.js
+# ============================================================
+# 2. 安装 Node.js 20.x
+# ============================================================
 if command -v node &> /dev/null; then
-    info "Node.js $(node -v)"
+  NODE_VER=$(node -v)
+  log "Node.js 已安装: ${NODE_VER}"
 else
-    info "安装 Node.js ${NODE_VERSION}..."
-    curl -fsSL https://deb.nodesource.com/setup_${NODE_VERSION}.x | bash - > /dev/null 2>&1
-    apt-get install -y nodejs
-    info "Node.js $(node -v) 安装完成"
+  log "安装 Node.js 20.x..."
+  curl -fsSL https://deb.nodesource.com/setup_20.x | bash - > /dev/null 2>&1
+  apt-get install -y -qq nodejs > /dev/null 2>&1
+  log "Node.js 安装完成: $(node -v)"
 fi
 
-# 3. pnpm
-if ! command -v pnpm &> /dev/null; then
-    npm install -g pnpm > /dev/null 2>&1
-fi
-info "pnpm $(pnpm -v)"
-
-# 4. PM2
-if ! command -v pm2 &> /dev/null; then
-    npm install -g pm2 > /dev/null 2>&1
-fi
-info "PM2 $(pm2 -v)"
-
-# 5. Nginx
-if ! command -v nginx &> /dev/null; then
-    apt-get install -y nginx
-fi
-info "Nginx 已就绪"
-
-# 6. Get source code
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-
-# Check if running from cloned repo
-if [ -f "$SCRIPT_DIR/backend/package.json" ] && [ -f "$SCRIPT_DIR/frontend/package.json" ]; then
-    info "检测到本地源码，使用当前目录"
-    SRC_DIR="$SCRIPT_DIR"
+# ============================================================
+# 3. 安装 pnpm
+# ============================================================
+if command -v pnpm &> /dev/null; then
+  log "pnpm 已安装: $(pnpm -v)"
 else
-    info "从 GitHub 拉取最新源码..."
-    TEMP_DIR=$(mktemp -d)
-    if command -v git &> /dev/null; then
-        git clone --depth 1 "$REPO_URL" "$TEMP_DIR/repo" > /dev/null 2>&1
-        SRC_DIR="$TEMP_DIR/repo"
-    else
-        curl -sL "$REPO_URL/archive/refs/heads/main.tar.gz" | tar xz -C "$TEMP_DIR"
-        SRC_DIR="$TEMP_DIR/telegram-web-client-main"
-    fi
-    info "源码下载完成"
+  log "安装 pnpm..."
+  npm install -g pnpm > /dev/null 2>&1
+  log "pnpm 安装完成: $(pnpm -v)"
 fi
 
-# 7. Deploy source code
-if [ -d "$DEPLOY_DIR" ]; then
-    warn "备份旧版本到 ${DEPLOY_DIR}.bak.$(date +%s)"
-    mv "$DEPLOY_DIR" "${DEPLOY_DIR}.bak.$(date +%s)" 2>/dev/null || true
+# ============================================================
+# 4. 安装 PM2 进程管理器
+# ============================================================
+if command -v pm2 &> /dev/null; then
+  log "PM2 已安装: $(pm2 -v)"
+else
+  log "安装 PM2..."
+  npm install -g pm2 > /dev/null 2>&1
+  log "PM2 安装完成: $(pm2 -v)"
 fi
 
-info "部署源码到 $DEPLOY_DIR..."
-mkdir -p "$DEPLOY_DIR"
-cp -r "$SRC_DIR/backend" "$DEPLOY_DIR/"
-cp -r "$SRC_DIR/frontend" "$DEPLOY_DIR/"
-
-# 8. Environment config
-if [ ! -f "$DEPLOY_DIR/backend/.env" ]; then
-    cat > "$DEPLOY_DIR/backend/.env" << ENVEOF
-# Telegram API
-TELEGRAM_API_ID=33960207
-TELEGRAM_API_HASH=b4a1d5e99cce9e6f317596dfc25aa38a
-
-# 服务端口
-PORT=${BACKEND_PORT}
-ENVEOF
-    info "API 配置已自动写入"
+# ============================================================
+# 5. 安装 Nginx
+# ============================================================
+if command -v nginx &> /dev/null; then
+  log "Nginx 已安装: $(nginx -v 2>&1)"
+else
+  log "安装 Nginx..."
+  apt-get install -y -qq nginx > /dev/null 2>&1
+  log "Nginx 安装完成: $(nginx -v 2>&1)"
 fi
 
-# 9. Backend
-info "安装后端依赖..."
-cd "$DEPLOY_DIR/backend"
+# ============================================================
+# 6. 从 GitHub Release 下载并解压源码
+# ============================================================
+log "从 GitHub Release 下载源码..."
+mkdir -p /tmp/telegram-deploy
+cd /tmp/telegram-deploy
+
+if [ -f /tmp/telegram-deploy/telegram-web-client.tar.gz ]; then
+  rm -f /tmp/telegram-deploy/telegram-web-client.tar.gz
+fi
+
+wget -q --show-progress -O telegram-web-client.tar.gz "${DOWNLOAD_URL}"
+
+log "解压源码到 ${APP_DIR}..."
+rm -rf "${APP_DIR}"
+mkdir -p "${APP_DIR}"
+tar xzf telegram-web-client.tar.gz -C "${APP_DIR}"
+
+# 清理临时文件
+rm -rf /tmp/telegram-deploy
+
+log "源码部署完成"
+
+# ============================================================
+# 7. 安装后端依赖 & 构建
+# ============================================================
+log "安装后端依赖..."
+cd "${APP_DIR}/backend"
 rm -rf node_modules
-npm install
+pnpm install --prod=false 2>&1 | tail -5
 
-info "编译后端..."
-# native modules auto-built with npm
-pnpm run build
+log "构建后端 TypeScript..."
+pnpm run build > /dev/null 2>&1
 
-# 10. Frontend
-info "安装前端依赖..."
-cd "$DEPLOY_DIR/frontend"
+# 创建 .env 文件
+cat > "${APP_DIR}/backend/.env" << EOF
+TELEGRAM_API_ID=2040
+TELEGRAM_API_HASH=b18441a1ff607e10a989891a54620ff1
+BACKEND_PORT=${BACKEND_PORT}
+NODE_ENV=production
+EOF
+
+log "后端构建完成"
+
+# ============================================================
+# 8. 安装前端依赖 & 构建
+# ============================================================
+log "安装前端依赖..."
+cd "${APP_DIR}/frontend"
 rm -rf node_modules
-pnpm install --silent 2>/dev/null || pnpm install
+pnpm install 2>&1 | tail -5
 
-info "构建前端..."
-pnpm run build
+log "构建前端生产版本..."
+pnpm run build > /dev/null 2>&1
 
-# 11. Copy frontend dist to nginx directory
-info "部署前端到 Nginx..."
-mkdir -p /var/www/telegram-web
-cp -r "$DEPLOY_DIR/frontend/dist/"* /var/www/telegram-web/
+log "前端构建完成"
 
-# 12. Nginx config
-info "配置 Nginx..."
-cat > /etc/nginx/sites-available/telegram-web << NGINXEOF
+# ============================================================
+# 9. 配置 Nginx
+# ============================================================
+log "配置 Nginx..."
+
+cat > /etc/nginx/sites-available/${APP_NAME} << EOF
 server {
     listen 80;
     server_name ${DOMAIN};
 
-    root /var/www/telegram-web;
+    # 安全头
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+
+    # 前端静态文件
+    root ${APP_DIR}/frontend/dist;
     index index.html;
 
+    # 前端路由 - SPA history mode
     location / {
         try_files \$uri \$uri/ /index.html;
     }
 
+    # 后端 API 代理
     location /api/ {
         proxy_pass http://127.0.0.1:${BACKEND_PORT};
         proxy_http_version 1.1;
@@ -163,17 +181,12 @@ server {
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_read_timeout 300s;
-        proxy_connect_timeout 75s;
-        error_page 502 503 504 =500 @api_error;
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
     }
 
-    location @api_error {
-        default_type application/json;
-        add_header Access-Control-Allow-Origin *;
-        return 502 '{"error": "Backend service is unavailable"}';
-    }
-
+    # WebSocket 代理 (Socket.io)
     location /socket.io/ {
         proxy_pass http://127.0.0.1:${BACKEND_PORT};
         proxy_http_version 1.1;
@@ -181,57 +194,98 @@ server {
         proxy_set_header Connection "upgrade";
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_read_timeout 86400s;
         proxy_send_timeout 86400s;
     }
 
+    # 静态资源缓存
     location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
         expires 30d;
         add_header Cache-Control "public, immutable";
     }
+
+    # 日志
+    access_log /var/log/nginx/${APP_NAME}.access.log;
+    error_log /var/log/nginx/${APP_NAME}.error.log;
 }
-NGINXEOF
+EOF
 
-ln -sf /etc/nginx/sites-available/telegram-web /etc/nginx/sites-enabled/
-rm -f /etc/nginx/sites-enabled/default
-nginx -t && systemctl restart nginx
-info "Nginx 配置完成"
+# 启用站点
+ln -sf /etc/nginx/sites-available/${APP_NAME} /etc/nginx/sites-enabled/${APP_NAME}
 
-# 13. Start backend with PM2
-info "启动后端服务..."
-cd "$DEPLOY_DIR/backend"
-pm2 delete telegram-backend 2>/dev/null || true
+# 测试 Nginx 配置
+nginx -t 2>&1 || error "Nginx 配置测试失败"
+
+# 重启 Nginx
+systemctl enable nginx > /dev/null 2>&1
+systemctl restart nginx
+
+log "Nginx 配置完成"
+
+# ============================================================
+# 10. 启动后端服务 (PM2)
+# ============================================================
+log "启动后端服务..."
+
+# 停止旧进程
+pm2 delete ${APP_NAME}-backend 2>/dev/null || true
+
+cd "${APP_DIR}/backend"
 pm2 start dist/index.js \
-    --name telegram-backend \
-    --max-memory-restart 512M \
-    --time
+  --name "${APP_NAME}-backend" \
+  --env production \
+  --max-memory-restart 512M \
+  --time
 
-pm2 save
-pm2 startup systemd -u root --hp /root 2>/dev/null || true
+# 保存 PM2 配置 & 设置开机自启
+pm2 save > /dev/null 2>&1
+pm2 startup systemd -u root --hp /root > /dev/null 2>&1
 
-sleep 3
+log "后端服务启动完成"
 
-# 14. Health check
+# ============================================================
+# 11. 验证服务状态
+# ============================================================
+sleep 2
+
 echo ""
-echo "============================================"
-SERVER_IP=$(curl -4 -s ifconfig.me 2>/dev/null || echo "YOUR_SERVER_IP")
+echo -e "${BLUE}============================================${NC}"
+echo -e "${GREEN}  部署完成!${NC}"
+echo -e "${BLUE}============================================${NC}"
+echo ""
 
-HEALTH=$(curl -s --max-time 5 http://127.0.0.1:${BACKEND_PORT}/api/auth/check 2>/dev/null || echo "")
-if echo "$HEALTH" | grep -q '"authorized"'; then
-    echo -e "  后端: ${GREEN}运行中${NC}"
+# 检查后端
+if curl -s http://127.0.0.1:${BACKEND_PORT}/api/health > /dev/null 2>&1; then
+  echo -e "  后端服务: ${GREEN}运行中${NC} (端口 ${BACKEND_PORT})"
 else
-    echo -e "  后端: ${RED}可能未启动${NC} - 查看日志: pm2 logs telegram-backend"
+  echo -e "  后端服务: ${RED}启动失败${NC}"
+  echo -e "  查看日志: ${YELLOW}pm2 logs ${APP_NAME}-backend${NC}"
 fi
-echo -e "  Nginx: ${GREEN}运行中${NC}"
+
+# 检查 Nginx
+if systemctl is-active --quiet nginx; then
+  echo -e "  Nginx:    ${GREEN}运行中${NC} (端口 80)"
+else
+  echo -e "  Nginx:    ${RED}启动失败${NC}"
+fi
+
 echo ""
-echo -e "  访问地址: ${GREEN}http://${SERVER_IP}${NC}"
+if [ "${DOMAIN}" = "_" ]; then
+  SERVER_IP=$(curl -4 -s ifconfig.me 2>/dev/null || curl -s ifconfig.me 2>/dev/null || echo "YOUR_SERVER_IP")
+  echo -e "  访问地址: ${GREEN}http://${SERVER_IP}${NC}"
+else
+  echo -e "  访问地址: ${GREEN}http://${DOMAIN}${NC}"
+fi
 echo ""
-echo "常用命令:"
-echo "  pm2 logs telegram-backend     # 查看日志"
-echo "  pm2 restart telegram-backend  # 重启后端"
-echo "  systemctl restart nginx       # 重启 Nginx"
+echo -e "${YELLOW}常用命令:${NC}"
+echo "  查看后端日志:  pm2 logs ${APP_NAME}-backend"
+echo "  重启后端:      pm2 restart ${APP_NAME}-backend"
+echo "  重启 Nginx:    systemctl restart nginx"
+echo "  查看状态:      pm2 status"
 echo ""
-echo "HTTPS (可选):"
+echo -e "${YELLOW}HTTPS 配置 (可选):${NC}"
 echo "  apt install certbot python3-certbot-nginx"
 echo "  certbot --nginx -d ${DOMAIN}"
-echo "============================================"
+echo ""
