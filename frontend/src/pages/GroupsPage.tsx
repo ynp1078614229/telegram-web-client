@@ -68,7 +68,7 @@ export default function GroupsPage({ onChatSelect, onRefreshChats }: GroupsPageP
               onClick={() => onChatSelect(group.id)}
               className="flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-gray-50 transition-colors"
             >
-              <Avatar name={group.title} color={group.avatarColor} size={48} />
+              <Avatar name={group.title} color={group.avatarColor} size={48} photoUrl={`/api/media/avatar/${group.id}`} />
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-gray-900 text-sm truncate">{group.title}</p>
                 <p className="text-xs text-gray-500 truncate">{group.lastMessage || 'No messages yet'}</p>
@@ -187,7 +187,7 @@ function CreateGroupModal({ onClose, onCreated }: CreateGroupModalProps) {
                         isSelected ? 'bg-primary/10' : 'hover:bg-gray-50'
                       }`}
                     >
-                      <Avatar name={name} color={contact.avatarColor} size={32} />
+                      <Avatar name={name} color={contact.avatarColor} size={32} photoUrl={`/api/media/avatar/${contact.id}`} />
                       <span className="text-sm flex-1">{name}</span>
                       {isSelected && (
                         <svg className="w-5 h-5 text-primary" fill="currentColor" viewBox="0 0 20 20">

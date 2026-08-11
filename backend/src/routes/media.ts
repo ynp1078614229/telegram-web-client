@@ -115,4 +115,21 @@ router.get('/:chatId/:msgId/:type', async (req, res) => {
   }
 });
 
+
+// Get avatar photo for a chat/user
+router.get('/avatar/:chatId', async (req: any, res: any) => {
+  const chatId = parseInt(req.params.chatId);
+  try {
+    const buffer = await telegramService.getAvatar(chatId);
+    if (!buffer) {
+      return res.status(404).json({ error: 'No avatar' });
+    }
+    res.set('Content-Type', 'image/jpeg');
+    res.set('Cache-Control', 'public, max-age=3600');
+    res.send(buffer);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 export default router;

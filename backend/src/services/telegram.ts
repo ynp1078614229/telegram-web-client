@@ -426,6 +426,32 @@ class TelegramService {
     }
   }
 
+
+  // Avatar download with cache (1 hour TTL)
+  private avatarCache: Map<number, { buffer: Buffer; ts: number }> = new Map();
+
+  async getAvatar(chatId: number): Promise<Buffer | null> {
+    const cached = this.avatarCache.get(chatId);
+    if (cached && Date.now() - cached.ts < 3600000) return cached.buffer;
+    if (!this.client) return null;
+    try {
+      const entity = await this.client.getEntity(chatId);
+      if (!entity) return null;
+      const photo = (entity as any).photo;
+      if (!photo || photo.className === 'UserProfilePhotoEmpty' || photo.className === 'ChatPhotoEmpty') return null;
+      const raw = await this.client.downloadProfilePhoto(entity);
+      const buffer = typeof raw === "string" ? Buffer.from(raw) : raw as Buffer;
+      if (buffer && buffer.length > 0) {
+        this.avatarCache.set(chatId, { buffer, ts: Date.now() });
+        return buffer;
+      }
+      return null;
+    } catch (e: any) {
+      console.log('[Avatar] Error for', chatId, ':', e.message);
+      return null;
+    }
+  }
+
   mapDialog(dialog: any): Chat {
     const entity = dialog.entity;
     const isUser = entity instanceof Api.User;

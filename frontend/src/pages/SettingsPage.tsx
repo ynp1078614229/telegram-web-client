@@ -18,7 +18,8 @@ export default function SettingsPage({ user, onLogout }: SettingsPageProps) {
       {/* Profile header */}
       <div className="p-6 border-b border-gray-100">
         <div className="flex flex-col items-center">
-          <Avatar name={name} color={avatarColor} size={80} />
+          <Avatar name={name} color={avatarColor}
+          photoUrl={user ? `/api/media/avatar/${user.id}` : undefined} size={80} />
           <h2 className="mt-3 font-semibold text-lg text-gray-900">{name}</h2>
           {user?.username && (
             <p className="text-sm text-gray-500">@{user.username}</p>

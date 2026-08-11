@@ -146,7 +146,7 @@ export default function ChatWindow({ chat, messages, loading, loadError, onRetry
             </svg>
           </button>
         )}
-        <Avatar name={chatName} color={chat.avatarColor} size={36} />
+        <Avatar name={chatName} color={chat.avatarColor} size={36} photoUrl={`/api/media/avatar/${chat.id}`} />
         <div className="ml-3">
           <h2 className="font-medium text-gray-900 text-sm">{chatName}</h2>
           <p className={`text-xs ${userStatus?.online ? 'text-primary' : 'text-gray-500'}`}>

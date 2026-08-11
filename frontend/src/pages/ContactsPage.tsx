@@ -121,7 +121,8 @@ function ContactItem({ contact, onClick }: ContactItemProps) {
       onClick={onClick}
       className="flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-gray-50 transition-colors"
     >
-      <Avatar name={name} color={contact.avatarColor} size={48} online={contact.online} />
+      <Avatar name={name} color={contact.avatarColor}
+      photoUrl={`/api/media/avatar/${contact.id}`} size={48} online={contact.online} />
       <div className="flex-1 min-w-0">
         <p className="font-medium text-gray-900 text-sm truncate">{name}</p>
         <p className="text-xs text-gray-500 truncate">

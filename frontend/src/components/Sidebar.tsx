@@ -103,6 +103,7 @@ function ChatItem({ chat, isSelected, onClick, onTogglePin }: ChatItemProps) {
       <Avatar
         name={name}
         color={chat.avatarColor}
+        photoUrl={`/api/media/avatar/${chat.id}`}
         size={48}
         online={false}
       />
