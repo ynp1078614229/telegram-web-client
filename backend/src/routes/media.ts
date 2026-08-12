@@ -68,6 +68,9 @@ router.get('/:chatId/:msgId/:type', async (req, res) => {
     try {
       const client = (telegramService as any).client!;
 
+      // 先确保 entity 已解析，避免 "Could not find the input entity" 错误
+      await telegramService.ensureEntity(parseInt(chatId));
+
       const messages = await client.getMessages(BigInt(chatId), {
         ids: [new Api.InputMessageID({ id: msgId })],
       });

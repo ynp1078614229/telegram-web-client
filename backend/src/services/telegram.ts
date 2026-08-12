@@ -427,6 +427,46 @@ class TelegramService {
   }
 
 
+  /**
+   * 确保 entity 已解析并缓存到 gramJS session 中。
+   * 新登录的 session 缓存为空，直接用数字 ID 调 getMessages 等操作会报
+   * "Could not find the input entity for PeerUser"。
+   * 此方法先尝试 getEntity（走缓存），失败则通过 API 获取并缓存。
+   */
+  async ensureEntity(chatId: number): Promise<any> {
+    if (!this.client) return null;
+    try {
+      // 先从缓存/API 获取 entity（gramJS 内部会缓存结果）
+      const entity = await this.client.getEntity(chatId);
+      if (entity) return entity;
+    } catch {
+      // getEntity 失败，尝试用 getInputEntity 强制解析
+    }
+    try {
+      // 对于 private chat (peerId = userId)，通过 users.getUsers 获取
+      const result = await this.client.invoke(
+        new Api.users.GetUsers({
+          id: [new Api.InputUser({ userId: chatId as any, accessHash: BigInt(0) as any })],
+        })
+      );
+      if (result && result.length > 0) {
+        // gramJS 会自动缓存返回的 entity
+        return result[0];
+      }
+    } catch {
+      // 最终 fallback：尝试通过 contacts 解析
+    }
+    try {
+      const resolved = await this.client.invoke(
+        new Api.contacts.ResolveUsername({ username: String(chatId) })
+      );
+      return resolved;
+    } catch {
+      console.error('[Telegram] ensureEntity: cannot resolve entity for', chatId);
+      return null;
+    }
+  }
+
   // Avatar download with cache (1 hour TTL)
   private avatarCache: Map<number, { buffer: Buffer; ts: number }> = new Map();
 
@@ -435,7 +475,7 @@ class TelegramService {
     if (cached && Date.now() - cached.ts < 3600000) return cached.buffer;
     if (!this.client) return null;
     try {
-      const entity = await this.client.getEntity(chatId);
+      const entity = await this.ensureEntity(chatId);
       if (!entity) return null;
       const photo = (entity as any).photo;
       if (!photo || photo.className === 'UserProfilePhotoEmpty' || photo.className === 'ChatPhotoEmpty') return null;
@@ -649,6 +689,8 @@ class TelegramService {
     if (localCount === 0 && this.client && this.isReady) {
       try {
         console.log("[Telegram] No local messages for chat", chatId, "- fetching from API");
+        // 先确保 entity 已解析，避免 "Could not find the input entity" 错误
+        await this.ensureEntity(chatId);
         const apiMessages = await this.client.getMessages(chatId, { limit: 50 });
         for (const msg of apiMessages) {
           try {
@@ -690,6 +732,7 @@ class TelegramService {
   async sendMessage(chatId: number, text: string, replyToMsgId?: number): Promise<Message | null> {
     if (!this.client || !this.isReady) throw new Error('Not authorized');
 
+    await this.ensureEntity(chatId);
     const result = await this.client.sendMessage(chatId, {
       message: text,
       replyTo: replyToMsgId ? replyToMsgId : undefined,
@@ -791,6 +834,7 @@ class TelegramService {
   async deleteMessage(chatId: number, messageId: number): Promise<void> {
     if (!this.client || !this.isReady) throw new Error("Not authorized");
     
+    await this.ensureEntity(chatId);
     await this.client.deleteMessages(chatId, [messageId], {
       revoke: true,
     });
@@ -802,6 +846,7 @@ class TelegramService {
   async editMessage(chatId: number, messageId: number, newText: string): Promise<Message | null> {
     if (!this.client || !this.isReady) throw new Error("Not authorized");
     
+    await this.ensureEntity(chatId);
     await this.client.editMessage(chatId, {
       message: messageId,
       text: newText,
@@ -821,6 +866,7 @@ class TelegramService {
   async sendMedia(chatId: number, fileBuffer: Buffer, fileName: string, caption?: string): Promise<Message | null> {
     if (!this.client || !this.isReady) throw new Error("Not authorized");
     
+    await this.ensureEntity(chatId);
     const isImage = /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(fileName);
     
     const attributes = [new Api.DocumentAttributeFilename({ fileName })];
@@ -846,7 +892,7 @@ class TelegramService {
     if (!this.client || !this.isReady) return { online: false };
     
     try {
-      const user = await this.client.getEntity(userId);
+      const user = await this.ensureEntity(userId);
       if (user instanceof Api.User && user.status) {
         if (user.status instanceof Api.UserStatusOnline) {
           return { online: true };
@@ -870,6 +916,8 @@ class TelegramService {
   async forwardMessage(fromChatId: number, toChatId: number, messageId: number): Promise<Message | null> {
     if (!this.client || !this.isReady) throw new Error("Not authorized");
     
+    await this.ensureEntity(fromChatId);
+    await this.ensureEntity(toChatId);
     const result = await this.client.forwardMessages(toChatId, {
       messages: [messageId],
       fromPeer: fromChatId,
