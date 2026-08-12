@@ -117,4 +117,18 @@ _addCol("priority", "INTEGER DEFAULT 0");
 _addCol("match_mode", "TEXT DEFAULT 'any'");
 db.exec(`CREATE TABLE IF NOT EXISTS auto_reply_cooldowns (rule_id INTEGER NOT NULL, user_id INTEGER NOT NULL, last_replied_at INTEGER NOT NULL, PRIMARY KEY (rule_id, user_id))`);
 
+
+// Entity data table for storing access hashes
+db.exec(`
+  CREATE TABLE IF NOT EXISTS entity_data (
+    id INTEGER PRIMARY KEY,
+    type TEXT NOT NULL DEFAULT 'user',
+    access_hash TEXT DEFAULT '',
+    username TEXT DEFAULT '',
+    title TEXT DEFAULT '',
+    first_name TEXT DEFAULT '',
+    last_name TEXT DEFAULT ''
+  )
+`);
+
 export default db;

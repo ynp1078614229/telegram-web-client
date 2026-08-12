@@ -109,6 +109,8 @@ class TelegramService {
           this.isReady = true;
           this.setupEventHandlers();
           console.log('[Telegram] Connected and authorized as', this.me?.firstName);
+          // Sync chats, contacts, and warm up entity cache sequentially to avoid flood wait
+          this._initAfterReconnect().catch(e => console.warn('[Telegram] initAfterReconnect failed:', e));
         }
       } catch (err) {
         console.error('[Telegram] Failed to reconnect:', err);
@@ -433,38 +435,175 @@ class TelegramService {
    * "Could not find the input entity for PeerUser"。
    * 此方法先尝试 getEntity（走缓存），失败则通过 API 获取并缓存。
    */
+  // Sequential init after reconnect: sync chats → contacts → warm entity cache
+  private async _initAfterReconnect(): Promise<void> {
+    if (!this.client || !this.isReady) return;
+    try {
+      console.log('[Telegram] Running post-reconnect initialization...');
+      // Fetch dialogs once and use for both sync and entity cache
+      const dialogs = await this.client.getDialogs({ limit: 500 });
+      let entityCount = 0;
+      
+      // Sync chats to DB
+      for (const dialog of dialogs) {
+        const chat = this.mapDialog(dialog);
+        this.upsertChat(chat);
+        if (dialog.entity) {
+          entityCount++;
+          // Store entity data for later reconstruction
+          const e = dialog.entity;
+          const eType = e.className === 'Channel' ? 'channel' : e.className === 'Chat' ? 'chat' : 'user';
+          const eAny = e as any;
+          const eHash = (eAny.accessHash || BigInt(0)).toString();
+          try {
+            db.prepare('INSERT OR REPLACE INTO entity_data (id, type, access_hash, username, title, first_name, last_name) VALUES (?, ?, ?, ?, ?, ?, ?)')
+              .run(Number(eAny.id), eType, eHash, eAny.username || '', eAny.title || '', eAny.firstName || '', eAny.lastName || '');
+          } catch {}
+        }
+      }
+      if (dialogs.length > 0) {
+        this.io?.emit('chat-update', { chats: dialogs.map(d => this.mapDialog(d)) });
+      }
+      console.log(`[Telegram] Synced ${dialogs.length} chats to DB, ${entityCount} entities cached`);
+      
+      // Sync contacts
+      try {
+        const result = await this.client.invoke(
+          new Api.contacts.GetContacts({ hash: BigInt(0) as any })
+        );
+        if (result instanceof Api.contacts.Contacts) {
+          const insert = db.prepare(`
+            INSERT OR REPLACE INTO contacts (id, first_name, last_name, username, phone, avatar_color, online, last_seen)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          `);
+          for (const user of result.users) {
+            if (user instanceof Api.User) {
+              insert.run(
+                Number(user.id), user.firstName || '', user.lastName || '',
+                user.username || '', user.phone || '',
+                getAvatarColor(Number(user.id)),
+                user.status instanceof Api.UserStatusOnline ? 1 : 0,
+                user.status instanceof Api.UserStatusOffline ? String((user.status as any).wasOnline) : ''
+              );
+            }
+          }
+          console.log(`[Telegram] Synced ${result.users.length} contacts`);
+        }
+      } catch (ce) {
+        console.warn('[Telegram] syncContacts error:', ce);
+      }
+    } catch (err) {
+      console.error('[Telegram] _initAfterReconnect error:', err);
+    }
+  }
+
+  // Pre-populate entity cache by fetching all dialogs
+  private async warmUpEntityCache(): Promise<void> {
+    if (!this.client || !this.isReady) return;
+    try {
+      console.log('[Telegram] Warming up entity cache from dialogs...');
+      const dialogs = await this.client.getDialogs({ limit: 500 });
+      let count = 0;
+      for (const d of dialogs) {
+        if (d.entity) {
+          // Accessing the entity caches it in gramJS's internal session
+          count++;
+        }
+      }
+      console.log(`[Telegram] Entity cache warmed: ${count} entities cached`);
+    } catch (err) {
+      console.warn('[Telegram] warmUpEntityCache error:', err);
+    }
+  }
+
   async ensureEntity(chatId: number): Promise<any> {
     if (!this.client) return null;
+    
+    // 1. Try from gramJS internal cache
     try {
-      // 先从缓存/API 获取 entity（gramJS 内部会缓存结果）
       const entity = await this.client.getEntity(chatId);
       if (entity) return entity;
-    } catch {
-      // getEntity 失败，尝试用 getInputEntity 强制解析
-    }
+    } catch { /* not in cache */ }
+    
+    // 2. Search in cached dialogs (with higher limit)
     try {
-      // 对于 private chat (peerId = userId)，通过 users.getUsers 获取
-      const result = await this.client.invoke(
-        new Api.users.GetUsers({
-          id: [new Api.InputUser({ userId: chatId as any, accessHash: BigInt(0) as any })],
-        })
-      );
-      if (result && result.length > 0) {
-        // gramJS 会自动缓存返回的 entity
-        return result[0];
+      const dialogs = await this.client.getDialogs({ limit: 500 });
+      for (const d of dialogs) {
+        if (d.entity) {
+          const eid = (d.entity as any).id;
+          if (eid && eid.toString() === chatId.toString()) {
+            return d.entity;
+          }
+        }
+        if (d.id && d.id.toString() === chatId.toString() && d.entity) {
+          return d.entity;
+        }
       }
-    } catch {
-      // 最终 fallback：尝试通过 contacts 解析
-    }
+    } catch { /* dialogs fetch failed */ }
+    
+    // 3. Look up entity data in local DB and reconstruct with correct type
     try {
-      const resolved = await this.client.invoke(
-        new Api.contacts.ResolveUsername({ username: String(chatId) })
-      );
-      return resolved;
-    } catch {
-      console.error('[Telegram] ensureEntity: cannot resolve entity for', chatId);
-      return null;
+      const row = db.prepare('SELECT * FROM entity_data WHERE id = ?').get(chatId) as any;
+      if (row && row.access_hash) {
+        const hash = BigInt(row.access_hash);
+        if (row.type === 'channel') {
+          try {
+            const result = await this.client.invoke(
+              new Api.channels.GetChannels({
+                id: [new Api.InputChannel({ channelId: BigInt(chatId) as any, accessHash: hash as any })],
+              })
+            );
+            if (result && 'chats' in result && result.chats.length > 0) {
+              return result.chats[0];
+            }
+          } catch {}
+          // Fallback: try messages.getChats
+          try {
+            const result = await this.client.invoke(
+              new Api.messages.GetChats({
+                id: [new Api.InputChannel({ channelId: BigInt(chatId) as any, accessHash: hash as any })] as any,
+              })
+            );
+            if (result && 'chats' in result && result.chats.length > 0) {
+              return result.chats[0];
+            }
+          } catch {}
+        } else if (row.type === 'user') {
+          try {
+            const result = await this.client.invoke(
+              new Api.users.GetUsers({
+                id: [new Api.InputUser({ userId: BigInt(chatId) as any, accessHash: hash as any })],
+              })
+            );
+            if (result && result.length > 0) return result[0];
+          } catch {}
+        } else if (row.type === 'chat') {
+          try {
+            const result = await this.client.invoke(
+              new Api.messages.GetChats({
+                id: [new Api.InputPeerChat({ chatId: BigInt(chatId) as any })] as any,
+              })
+            );
+            if (result && 'chats' in result && result.chats.length > 0) {
+              return result.chats[0];
+            }
+          } catch {}
+        }
+      }
+    } catch {}
+    
+    // 4. Username resolve (only for non-numeric IDs)
+    if (isNaN(chatId)) {
+      try {
+        const resolved = await this.client.invoke(
+          new Api.contacts.ResolveUsername({ username: String(chatId) })
+        );
+        return resolved;
+      } catch { /* not a username */ }
     }
+    
+    console.error('[Telegram] ensureEntity: cannot resolve entity for', chatId);
+    return null;
   }
 
   // Avatar download with cache (1 hour TTL)
@@ -689,19 +828,24 @@ class TelegramService {
     if (localCount === 0 && this.client && this.isReady) {
       try {
         console.log("[Telegram] No local messages for chat", chatId, "- fetching from API");
-        // 先确保 entity 已解析，避免 "Could not find the input entity" 错误
-        await this.ensureEntity(chatId);
-        const apiMessages = await this.client.getMessages(chatId, { limit: 50 });
-        for (const msg of apiMessages) {
-          try {
-            const mapped = await this.mapMessage(msg as any, chatId);
-            this.insertMessage(mapped);
-          } catch (e) { /* skip */ }
+        // 先确保 entity 已解析
+        const entity = await this.ensureEntity(chatId);
+        if (!entity) {
+          // Entity 不可用（频道已删除/被封等），跳过 API 拉取
+          console.warn("[Telegram] Cannot resolve entity for chat", chatId, "- skipping API fetch");
+        } else {
+          const apiMessages = await this.client.getMessages(chatId, { limit: 50 });
+          for (const msg of apiMessages) {
+            try {
+              const mapped = await this.mapMessage(msg as any, chatId);
+              this.insertMessage(mapped);
+            } catch (e) { /* skip */ }
+          }
+          console.log("[Telegram] Cached", apiMessages.length, "messages for chat", chatId);
         }
-        console.log("[Telegram] Cached", apiMessages.length, "messages for chat", chatId);
       } catch (err) {
         console.error("[Telegram] Error fetching messages:", err);
-        throw err;
+        // Don't throw - let it fall through to return whatever local data exists
       }
     }
 
