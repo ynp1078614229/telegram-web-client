@@ -105,6 +105,9 @@ mkdir -p "$DEPLOY_DIR"
 cp -r "$SRC_DIR/backend" "$DEPLOY_DIR/"
 cp -r "$SRC_DIR/frontend" "$DEPLOY_DIR/"
 
+# 清除可能从源码包带入的访问配置，确保首次部署触发密码设置
+rm -f "$DEPLOY_DIR/backend/data/access_config.json"
+
 # 8. Environment config
 if [ ! -f "$DEPLOY_DIR/backend/.env" ]; then
     cat > "$DEPLOY_DIR/backend/.env" << ENVEOF
